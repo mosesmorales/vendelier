@@ -1,0 +1,11 @@
+<article>
+  {% if product.image_url %}<img class="product-image" src="{{ product.image_url }}" alt="" loading="lazy">{% endif %}
+  <div class="product-body">
+    <h3>{{ product.name }}</h3>
+    {% if product.description != blank %}<p>{{ product.description }}</p>{% endif %}
+    <div class="product-meta">
+      <strong>{{ product.price_cents | money }}</strong>
+      {% if product.available %}<span>Disponible</span>{% else %}<span>Agotado</span>{% endif %}
+    </div>
+  </div>
+</article>

@@ -25,6 +25,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm test:monolith
       - name: Verificar PostgreSQL y aislamiento
         run: |
           cp .env.example .env

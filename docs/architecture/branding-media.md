@@ -4,6 +4,8 @@ En **Studio → Apariencia y marca**, el propietario elige **Studio** o **Storef
 
 Al publicar, la API comprueba el contraste del texto en ambos modos. Cada cambio al borrador o publicación requiere la revisión vigente. Si el tema cambió en otra pestaña, recarga esos datos antes de aplicar tus ajustes.
 
+En la pestaña **Storefront**, el enlace **Vista del borrador guardado** abre una página Liquid de Atelier con la marca y los productos de la empresa autenticada. La página pública **Ver versión Liquid** usa la revisión publicada. Ambas usan el mismo renderer y sus imágenes se sirven desde el mismo origen que el monolito. [Decisión del motor de temas](modular-monolith.md#prueba-inicial-del-motor-de-temas)
+
 ## Importar y conservar imágenes
 
 Pega una URL HTTPS pública que apunte directamente a una imagen PNG, JPEG o WebP de hasta 5 MB. La API valida los destinos de la descarga, comprueba el contenido, elimina metadatos y guarda una copia WebP de hasta 1600 × 1600 píxeles, manteniendo su proporción. Puedes elegir una imagen para el logo, el banner o un producto desde Studio.

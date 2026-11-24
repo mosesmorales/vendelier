@@ -96,26 +96,26 @@ export interface Registration extends Credentials {
   slug: string;
 }
 
-export const websiteUrl = process.env.NEXT_PUBLIC_WEBSITE_URL ?? "http://localhost:3000";
-export const platformUrl = process.env.NEXT_PUBLIC_PLATFORM_URL ?? "http://localhost:3001";
-export const studioUrl = process.env.NEXT_PUBLIC_STUDIO_URL ?? "http://localhost:3002";
-export const storefrontUrl = process.env.NEXT_PUBLIC_STOREFRONT_URL ?? "http://localhost:3003";
+export const websiteUrl = "/";
+export const platformUrl = "/control";
+export const studioUrl = "/studio";
+export const storefrontUrl = "/tiendas";
 
 export function websiteLoginUrl() {
-  const url = new URL(websiteUrl);
-  url.searchParams.set("mode", "login");
-  url.hash = "acceso";
-  return url.href;
+  return "/?mode=login#acceso";
 }
 
 export const storeUrl = (slug: string) =>
-  new URL(encodeURIComponent(slug), storefrontUrl.replace(/\/?$/, "/")).href;
+  `${storefrontUrl}/${encodeURIComponent(slug)}`;
 
-const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
+const apiUrl = "/api";
 
 export const studioMediaUrl = (id: string) => `${apiUrl}/studio/media/${encodeURIComponent(id)}`;
 export const storeMediaUrl = (slug: string, id: string) =>
   `${apiUrl}/store/${encodeURIComponent(slug)}/media/${encodeURIComponent(id)}`;
+
+export const storeAtelierUrl = (slug: string) => `${apiUrl}/store/${encodeURIComponent(slug)}/atelier`;
+export const studioAtelierDraftUrl = `${apiUrl}/studio/appearance/storefront/atelier`;
 
 export class ApiError extends Error {
   constructor(readonly status: number) {
@@ -154,7 +154,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const response = await fetch(apiUrl + path, {
     method: options.method ?? "GET",
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    credentials: "include",
+    credentials: "same-origin",
     cache: "no-store",
     headers,
     signal: options.signal,

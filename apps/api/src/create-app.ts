@@ -1,36 +1,46 @@
 import "reflect-metadata";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { TLSSocket } from "node:tls";
-import { type NestApplicationOptions, ValidationPipe } from "@nestjs/common";
+import { type INestApplication, type NestApplicationOptions, ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module.js";
 import { SESSION_COOKIE } from "./commerce/security.js";
 
-export async function createApp(options?: NestApplicationOptions) {
-  const app = await NestFactory.create(AppModule, options);
+export interface ApiRoutingOptions {
+  globalPrefix?: string;
+  publicOrigin?: string;
+  corsOrigins?: string[];
+}
+
+export async function createApp(
+  options?: NestApplicationOptions,
+  routing: ApiRoutingOptions = {},
+): Promise<INestApplication> {
+  const publicOrigin = resolvePublicOrigin(routing.publicOrigin);
   const defaultOrigins = [3000, 3001, 3002, 3003].map((port) => `http://localhost:${port}`);
   const configuredOrigins = process.env.API_CORS_ORIGINS?.split(",");
-  const origins = new Set((configuredOrigins ?? defaultOrigins).map((origin) => origin.trim()).filter(Boolean));
+  const origins = new Set((routing.corsOrigins ?? configuredOrigins ?? defaultOrigins)
+    .map((origin) => origin.trim()).filter(Boolean));
+  const app = await NestFactory.create(AppModule, options);
+
+  if (routing.globalPrefix) {
+    app.setGlobalPrefix(routing.globalPrefix);
+  }
 
   app.use((request: IncomingMessage, response: ServerResponse, next: () => void) => {
     const origin = request.headers.origin;
     const readOnlyMethod = ["GET", "HEAD", "OPTIONS"].includes(request.method ?? "");
-    const protocol = request.socket instanceof TLSSocket ? "https" : "http";
-    const localOrigins = ["localhost", "127.0.0.1", "[::1]"].map((host) =>
-      new URL(`${protocol}://${host}:${request.socket.localPort}`).origin,
-    );
-    if (!readOnlyMethod && origin && !localOrigins.includes(origin) && !origins.has(origin)) {
+    if (!readOnlyMethod && origin && origin !== (publicOrigin ?? requestOrigin(request)) && !origins.has(origin)) {
       response.writeHead(403, { "Content-Type": "application/json" });
       response.end(JSON.stringify({ statusCode: 403, message: "Origin is not allowed." }));
       return;
     }
     next();
   });
-  app.enableCors({
-    credentials: true,
-    origin: [...origins],
-  });
+  if (origins.size > 0) {
+    app.enableCors({ credentials: true, origin: [...origins] });
+  }
 
   app.useGlobalPipes(
     new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }),
@@ -45,9 +55,30 @@ export async function createApp(options?: NestApplicationOptions) {
     .build();
 
   SwaggerModule.setup("docs", app, () => SwaggerModule.createDocument(app, openApiConfig), {
-    jsonDocumentUrl: "/docs-json",
+    useGlobalPrefix: true,
     raw: ["json"],
   });
 
   return app;
+}
+
+function resolvePublicOrigin(configured: string | undefined): string | undefined {
+  if (!configured?.trim()) {
+    return undefined;
+  }
+  const url = URL.parse(configured.trim());
+  if (!url || !["http:", "https:"].includes(url.protocol) || url.username || url.password ||
+    url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("VENDELIER_ORIGIN must be an HTTP(S) origin without a path, query, or credentials.");
+  }
+  return url.origin;
+}
+
+function requestOrigin(request: IncomingMessage): string | undefined {
+  const authority = request.headers.host;
+  if (!authority || /[\s,\\/?#@%]/.test(authority)) {
+    return undefined;
+  }
+  const scheme = request.socket instanceof TLSSocket && request.socket.encrypted ? "https" : "http";
+  return URL.parse(`${scheme}://${authority}`)?.origin;
 }

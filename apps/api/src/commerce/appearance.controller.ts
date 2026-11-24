@@ -1,3 +1,4 @@
+import type { ServerResponse } from "node:http";
 import {
   Body,
   ConflictException,
@@ -11,12 +12,14 @@ import {
   ParseEnumPipe,
   Patch,
   Post,
+  Res,
 } from "@nestjs/common";
-import { ApiCookieAuth, ApiParam, ApiProperty, ApiTags } from "@nestjs/swagger";
+import { ApiCookieAuth, ApiParam, ApiProduces, ApiProperty, ApiTags } from "@nestjs/swagger";
 import { ThemeScope, withTenant } from "@vendelier/database";
 import { Type } from "class-transformer";
 import { IsDefined, IsInt, IsNotEmpty, IsObject, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from "class-validator";
 import { HEX_COLOR, appearanceState, assertReadable, normalizeAppearance } from "./appearance.js";
+import { atelierInput, respondWithAtelier } from "./atelier-response.js";
 import { AuthService } from "./auth.service.js";
 import { hasDatabaseError } from "./database-errors.js";
 import { DatabaseService } from "./database.service.js";
@@ -114,6 +117,24 @@ export class AppearanceController {
       studio: appearanceState(rows.find((row) => row.scope === ThemeScope.STUDIO), session.tenant.name),
       storefront: appearanceState(rows.find((row) => row.scope === ThemeScope.STOREFRONT), session.tenant.name),
     };
+  }
+
+  @Get("storefront/atelier")
+  @ApiProduces("text/html")
+  async preview(
+    @Headers("cookie") cookie: string | undefined,
+    @Res({ passthrough: true }) response: ServerResponse,
+  ) {
+    const { tenantId, session } = await this.auth.requireSession(cookie);
+    const input = await withTenant(this.database.connection, tenantId, async (tx) => {
+      const settings = await tx.tenantThemeSettings.findUnique({
+        where: { tenantId_scope: { tenantId, scope: ThemeScope.STOREFRONT } },
+        select: { draftJson: true },
+      });
+      const theme = normalizeAppearance(settings?.draftJson, session.tenant.name);
+      return atelierInput(tx, { id: tenantId, slug: session.tenant.slug }, theme, true);
+    });
+    return respondWithAtelier(response, input);
   }
 
   @Patch(":scope")

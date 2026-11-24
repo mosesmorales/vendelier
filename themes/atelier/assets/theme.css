@@ -1,0 +1,20 @@
+*, *::before, *::after { box-sizing: border-box; }
+html { color-scheme: light dark; }
+body { margin: 0; background: var(--background); color: var(--text); font: 100%/1.55 system-ui, sans-serif; }
+main { max-width: 72rem; margin-inline: auto; padding: clamp(1rem, 4vw, 3rem); }
+header, .section-heading, .product-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+header { padding-block: 1.5rem; border-block-end: 0.2rem solid var(--accent); }
+.section-heading, .product-meta { justify-content: space-between; }
+h1, h2, h3, p { margin: 0; overflow-wrap: anywhere; }
+h1 { font-size: clamp(2rem, 6vw, 3.5rem); line-height: 1.08; }
+h2 { font-size: 1.35rem; }
+.caption { font-size: 0.85rem; }
+a { color: inherit; text-underline-offset: 0.2em; }
+.logo { object-fit: contain; border-radius: 0.5rem; }
+.banner { display: block; inline-size: 100%; max-block-size: 22rem; object-fit: cover; margin-block-start: 1.5rem; border-radius: 0.75rem; }
+section { margin-block-start: 2rem; }
+.products { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; list-style: none; padding: 0; }
+article { min-inline-size: 0; block-size: 100%; background: var(--surface); border-radius: 0.75rem; overflow: hidden; }
+.product-image { display: block; inline-size: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.product-body { display: grid; gap: 0.75rem; padding: 1rem; }
+.product-meta { align-items: baseline; }

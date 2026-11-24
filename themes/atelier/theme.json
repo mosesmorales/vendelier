@@ -1,0 +1,8 @@
+{
+  "id": "atelier",
+  "name": "Atelier",
+  "version": "0.1.0",
+  "engineVersion": "1",
+  "defaultLocale": "es-MX",
+  "supportedTemplates": ["index"]
+}

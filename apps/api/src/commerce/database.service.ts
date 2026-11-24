@@ -1,11 +1,11 @@
 import { Injectable, type OnApplicationShutdown, ServiceUnavailableException } from "@nestjs/common";
-import { createDatabase } from "@vendelier/database";
+import { createDatabase, type PrismaClient } from "@vendelier/database";
 
 @Injectable()
 export class DatabaseService implements OnApplicationShutdown {
-  private client?: ReturnType<typeof createDatabase>;
+  private client?: PrismaClient;
 
-  get connection() {
+  get connection(): PrismaClient {
     if (this.client) {
       return this.client;
     }

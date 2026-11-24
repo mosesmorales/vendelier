@@ -1,0 +1,18 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "dev": {
+      "passThroughEnv": [
+        "VENDELIER_HOST",
+        "VENDELIER_PORT",
+        "VENDELIER_ORIGIN",
+        "DATABASE_URL",
+        "SESSION_SECRET",
+        "SESSION_COOKIE_SECURE",
+        "DEMO_ADMIN_TOKEN",
+        "MEDIA_*",
+        "AWS_*"
+      ]
+    }
+  }
+}

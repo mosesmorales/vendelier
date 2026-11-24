@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { ServerResponse } from "node:http";
 import {
   BadRequestException,
   Body,
@@ -12,11 +13,13 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Res,
 } from "@nestjs/common";
 import { ApiProduces, ApiTags } from "@nestjs/swagger";
 import { ThemeScope, findPublishedTenant, withTenant } from "@vendelier/database";
 import { MediaStorageService } from "../media/media-storage.service.js";
-import { publishedAppearance } from "./appearance.js";
+import { normalizeAppearance, publishedAppearance } from "./appearance.js";
+import { atelierInput, respondWithAtelier } from "./atelier-response.js";
 import { hasDatabaseError } from "./database-errors.js";
 import { DatabaseService } from "./database.service.js";
 import { CheckoutDto, MAX_DATABASE_INT, isTenantSlug } from "./dto.js";
@@ -40,6 +43,17 @@ export class StoreController {
       const theme = await publishedAppearance(tx, tenant.id, ThemeScope.STOREFRONT, tenant.name);
       return { tenant: tenantView(tenant), products: products.map(productView), theme };
     });
+  }
+
+  @Get(":slug/atelier")
+  @ApiProduces("text/html")
+  async atelier(@Param("slug") slug: string, @Res({ passthrough: true }) response: ServerResponse) {
+    const tenant = await this.requirePublishedTenant(slug);
+    const input = await withTenant(this.database.connection, tenant.id, async (tx) => {
+      const theme = await publishedAppearance(tx, tenant.id, ThemeScope.STOREFRONT, tenant.name);
+      return atelierInput(tx, tenant, theme ?? normalizeAppearance(null, tenant.name), false);
+    });
+    return respondWithAtelier(response, input);
   }
 
   @Get(":slug/media/:id")

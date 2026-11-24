@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/create-app.d.ts",
+      "import": "./dist/create-app.js"
+    }
+  },
   "scripts": {
     "dev": "tsc-watch --onSuccess \"node --env-file-if-exists=../../.env dist/main.js\"",
     "build": "tsc --project tsconfig.json",
@@ -21,6 +27,7 @@
     "@nestjs/platform-express": "12.6.0",
     "@nestjs/swagger": "12.1.2",
     "@vendelier/database": "workspace:*",
+    "@vendelier/theme-engine": "workspace:*",
     "class-transformer": "0.5.1",
     "class-validator": "0.15.1",
     "reflect-metadata": "0.2.2",

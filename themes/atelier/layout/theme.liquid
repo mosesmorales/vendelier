@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es-MX">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{{ shop.name }} · Atelier</title>
+    <style>{{ stylesheet | raw }}</style>
+  </head>
+  <body>
+    <main>
+      <header>
+        {% if shop.logo_url %}<img class="logo" src="{{ shop.logo_url }}" alt="" width="56" height="56">{% endif %}
+        <div>
+          {% if preview %}<p class="caption">Borrador de Atelier</p>{% endif %}
+          <h1>{{ shop.name }}</h1>
+        </div>
+      </header>
+      {% if shop.banner_url %}<img class="banner" src="{{ shop.banner_url }}" alt="">{% endif %}
+      <section aria-labelledby="catalog-title">
+        <div class="section-heading">
+          <h2 id="catalog-title">Catálogo</h2>
+          {% unless preview %}<a href="{{ shop.catalog_url }}">Ir a la tienda</a>{% endunless %}
+        </div>
+        {% if products.size > 0 %}
+          <ul class="products">
+            {% for product in products %}
+              <li>{% render product-card.liquid, product: product %}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>Este catálogo todavía no tiene productos.</p>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>
