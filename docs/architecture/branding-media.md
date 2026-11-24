@@ -1,6 +1,6 @@
 # Marca e imágenes por empresa
 
-En **Studio → Apariencia y marca**, el propietario elige **Studio** o **Storefront**. Cada ámbito admite un nombre visible, logo, banner y colores de fondo, superficie, texto y acento en claro y oscuro. La vista previa muestra los cambios del formulario. Guardar copia el formulario al borrador y publicar activa la versión de ese ámbito. El tema de Storefront se muestra cuando la tienda también está publicada.
+En **Studio → Apariencia y marca**, el propietario elige **Studio** o **Storefront**. Cada ámbito admite un nombre visible, logo, banner y colores de fondo, superficie, texto y acento en claro y oscuro. La vista previa usa los productos de la empresa y permite cambiar entre escritorio, tableta y móvil. Guardar copia el formulario al borrador y publicar activa la versión de ese ámbito. El tema de Storefront se muestra cuando la tienda también está publicada.
 
 Al publicar, la API comprueba el contraste del texto en ambos modos. Cada cambio al borrador o publicación requiere la revisión vigente. Si el tema cambió en otra pestaña, recarga esos datos antes de aplicar tus ajustes.
 

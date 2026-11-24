@@ -1,4 +1,4 @@
-import "@fontsource-variable/urbanist";
+import "@fontsource-variable/space-grotesk";
 import "./globals.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";

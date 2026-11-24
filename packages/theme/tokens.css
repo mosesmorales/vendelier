@@ -1,29 +1,33 @@
 :root {
   color-scheme: light;
-  --vd-background: #f4f2ed;
+  --vd-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --vd-background: #f7f7f4;
   --vd-surface: #ffffff;
-  --vd-text: #141414;
-  --vd-muted: #6b6b6b;
-  --vd-border: #e7e7e4;
-  --vd-primary: #141414;
+  --vd-text: #1b1c1c;
+  --vd-muted: #535757;
+  --vd-border: #e2e2dd;
+  --vd-primary: #1c1b1b;
   --vd-on-primary: #ffffff;
-  --vd-accent: #d6f36a;
+  --vd-accent: #d2ef66;
   --vd-on-accent: #141414;
   --vd-focus: #476100;
   --vd-danger: #9e2525;
   --vd-success: #28623d;
   --vd-sand: #e3ded3;
-  --vd-radius: 1rem;
+  --vd-radius: 0.75rem;
+  --vd-inset: #f1f1ed;
+  --vd-rail: #1a1c1b;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --vd-background: #111111;
-    --vd-surface: #242424;
+    --vd-background: #131514;
+    --vd-surface: #1d201e;
+    --vd-inset: #272a28;
     --vd-text: #ffffff;
     --vd-muted: #bdbdbd;
-    --vd-border: #383838;
+    --vd-border: #353937;
     --vd-primary: #ffffff;
     --vd-on-primary: #141414;
     --vd-focus: #d6f36a;
@@ -42,7 +46,8 @@
     --vd-primary: var(--vd-text);
     --vd-on-primary: var(--vd-background);
     --vd-muted: var(--vd-text);
-    --vd-border: color-mix(in srgb, var(--vd-text) 23%, var(--vd-surface));
+    --vd-inset: color-mix(in srgb, var(--vd-text) 4%, var(--vd-surface));
+    --vd-border: color-mix(in srgb, var(--vd-text) 14%, var(--vd-surface));
     --vd-focus: var(--vd-text);
     --vd-danger: var(--vd-theme-danger);
     --vd-success: var(--vd-theme-success);
@@ -66,18 +71,102 @@
   --color-danger: var(--vd-danger);
   --color-success: var(--vd-success);
   --color-sand: var(--vd-sand);
+  --color-inset: var(--vd-inset);
+  --color-rail: var(--vd-rail);
   --radius-panel: var(--vd-radius);
-  --font-sans: "Urbanist Variable", system-ui, sans-serif;
+  --font-sans: "Space Grotesk Variable", system-ui, sans-serif;
 }
 
 @layer base {
   body {
     background: var(--vd-background);
     color: var(--vd-text);
+    font-family: var(--font-sans);
+    font-weight: 400;
   }
 
   :focus-visible {
     outline: 2px solid var(--vd-focus);
     outline-offset: 4px;
+  }
+}
+
+@layer components {
+  .press-feedback {
+    touch-action: manipulation;
+  }
+
+  .press-feedback:active:where(:not(:disabled, [aria-disabled="true"])) {
+    box-shadow: inset 0 0 0 1px currentColor;
+  }
+
+  .cart-count-highlight {
+    opacity: 0;
+  }
+
+  .cart-count[data-filled] .cart-count-highlight {
+    opacity: 0.38;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .press-feedback:where(:not(:focus-visible, :disabled, [aria-disabled="true"])) {
+      transition: transform 100ms var(--vd-ease-out);
+    }
+
+    .press-feedback:active:where(:not(:focus-visible, :disabled, [aria-disabled="true"])) {
+      transform: scale(0.97);
+      transition-duration: 140ms;
+    }
+
+    .cart-count:not([data-filled]) .cart-count-highlight {
+      transform: scale(0.95);
+    }
+
+    .cart-count[data-filled][data-pointer-add] .cart-count-highlight {
+      transition: opacity 140ms var(--vd-ease-out), transform 140ms var(--vd-ease-out);
+    }
+
+    .publish-confirmation-entry,
+    .receipt-mark-entry {
+      transition: opacity 160ms var(--vd-ease-out), transform 160ms var(--vd-ease-out);
+    }
+
+    .receipt-summary-entry {
+      transition: opacity 130ms var(--vd-ease-out) 30ms, transform 130ms var(--vd-ease-out) 30ms;
+    }
+
+    @starting-style {
+      .publish-confirmation-entry {
+        opacity: 0.82;
+        transform: translateY(-4px);
+      }
+
+      .receipt-mark-entry {
+        opacity: 0.68;
+        transform: scale(0.95);
+      }
+
+      .receipt-summary-entry {
+        opacity: 0.85;
+        transform: translateY(3px);
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cart-count[data-filled][data-pointer-add] .cart-count-highlight,
+    .publish-confirmation-entry,
+    .receipt-mark-entry,
+    .receipt-summary-entry {
+      transition: opacity 100ms var(--vd-ease-out);
+    }
+
+    @starting-style {
+      .publish-confirmation-entry,
+      .receipt-mark-entry,
+      .receipt-summary-entry {
+        opacity: 0.85;
+      }
+    }
   }
 }

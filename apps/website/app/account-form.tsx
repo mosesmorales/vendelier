@@ -45,22 +45,22 @@ export function AccountForm({ initialMode }: { initialMode: AccountMode }) {
   }
 
   return (
-    <section id="acceso" className={panelClass} aria-labelledby="account-title">
-      <div className="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-background p-1">
+    <section id="acceso" className={panelClass + " scroll-mt-4 sm:p-7"} aria-labelledby="account-title">
+      <div className="mb-6 grid grid-cols-2 gap-2 border-b border-border">
         {(["register", "login"] as const).map((option) => (
           <button
             key={option}
             type="button"
             aria-pressed={mode === option}
             disabled={submitting}
-            className="min-h-11 cursor-pointer rounded-md px-2 text-sm font-bold text-muted aria-pressed:bg-surface aria-pressed:text-foreground aria-pressed:shadow-sm disabled:opacity-60"
+            className="-mb-px min-h-11 cursor-pointer border-b-2 border-transparent px-2 text-sm font-medium text-muted hover:text-foreground aria-pressed:border-foreground aria-pressed:font-semibold aria-pressed:text-foreground disabled:opacity-60"
             onClick={() => { setMode(option); setError(""); }}
           >
             {option === "register" ? "Crear tienda" : "Iniciar sesión"}
           </button>
         ))}
       </div>
-      <h2 id="account-title" className="text-2xl font-extrabold tracking-tight">
+      <h2 id="account-title" className="text-2xl font-semibold tracking-[-0.035em]">
         {registering ? "Crea tu tienda de prueba" : "Entra a Studio"}
       </h2>
       <form key={mode} onSubmit={submit} className="mt-5 grid gap-4">
@@ -81,7 +81,7 @@ export function AccountForm({ initialMode }: { initialMode: AccountMode }) {
           <input className={fieldClass} type="password" name="password" required minLength={8} maxLength={128} autoComplete={registering ? "new-password" : "current-password"} aria-describedby={registering ? "registration-password-hint" : undefined} />
         </Field>
         {error && <Notice kind="error">{error}</Notice>}
-        <button type="submit" disabled={submitting} className={actionClass}>
+        <button type="submit" disabled={submitting} className={actionClass + " mt-1"}>
           {submitting ? "Conectando…" : registering ? "Crear tienda y entrar a Studio" : "Iniciar sesión en Studio"}
         </button>
       </form>

@@ -15,7 +15,8 @@ En cada cambio de contrato, migración o flujo, actualiza la guía correspondien
 
 ## Límites y contratos existentes
 
-- Las cuatro superficies web se empaquetan por separado. Website y Super Admin usan el kit de marca corporativa. Studio y Store declaran ámbitos de tema independientes con valores predeterminados para claro y oscuro e iconos de pestaña propios. La tipografía Urbanist se empaqueta localmente. El texto secundario del tema claro usa `#6B6B6B` para alcanzar 4.76:1 sobre el fondo marfil.
+- Las cuatro superficies web se empaquetan por separado y comparten la tipografía local Space Grotesk, controles y tokens semánticos de la referencia de Stitch. Website y Super Admin usan el kit de marca corporativa. Studio y Store mantienen ámbitos de tema independientes para claro y oscuro. Los colores publicados por empresa se aplican sobre los componentes compartidos.
+- Studio organiza Resumen, Catálogo e inventario, Pedidos y Apariencia y marca en una barra lateral. El resumen calcula ventas, preparación de pedidos y existencias desde los datos de la empresa.
 - `GET /health` responde `200` con `{"status":"ok"}` cuando el proceso HTTP está activo. El OpenAPI está disponible como JSON en `/docs-json` y en la interfaz `/docs`.
 - `/auth` crea una cuenta de propietario y su tienda, y emite una sesión en cookie HTTP-only. `/studio` opera sobre la tienda que la API resuelve a partir de esa sesión. El catálogo público se resuelve con el slug de una tienda publicada.
 - El checkout simulado toma precios y existencias de PostgreSQL. Una compra aprobada guarda el pedido, sus líneas y el descuento de inventario en una transacción. La clave de checkout evita repetir el descuento al reintentar. El pedido conserva el nombre, SKU y precio que vio el comprador.

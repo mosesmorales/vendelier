@@ -1,17 +1,31 @@
 "use client";
 
 import { api, errorMessage, storeMediaUrl, type Order, type Product, type Store } from "@vendelier/api-client";
-import { actionClass, appearanceStyle, fieldClass, Field, formatMoney, MediaImage, Notice, panelClass, secondaryClass, SkipLink } from "@vendelier/ui";
-import { Check, Minus, Plus, ShoppingBag } from "lucide-react";
+import { appearanceStyle, formatMoney, MediaImage, Notice, panelClass, secondaryClass, SkipLink } from "@vendelier/ui";
+import { ArrowUpRight, Search, ShoppingBag, Store as StoreIcon } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { CheckoutForm } from "./checkout-form";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { CatalogueToolbar, filterCatalogue, Filters, initialFilters, ProductCard } from "./catalogue";
+import { CartPanel, ProductDetail } from "./purchase-panel";
 
 const maxDistinctProducts = 50;
 const maxQuantityPerProduct = 100;
 
 function maxOrderQuantity(stock: number) {
   return Math.min(stock, maxQuantityPerProduct);
+}
+
+function subscribeToHash(notify: () => void) {
+  window.addEventListener("hashchange", notify);
+  return () => window.removeEventListener("hashchange", notify);
+}
+
+function readCartHash() {
+  return window.location.hash === "#carrito";
+}
+
+function navigateToPanel(fragment: "#detalle" | "#carrito") {
+  window.location.assign(new URL(fragment, window.location.href));
 }
 
 export function Storefront({ slug }: { slug: string }) {
@@ -21,8 +35,18 @@ export function Storefront({ slug }: { slug: string }) {
   const [paymentPending, setPaymentPending] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState(initialFilters);
+  const [selectedId, setSelectedId] = useState<string>();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [cartEntryFromPointer, setCartEntryFromPointer] = useState(false);
   const [order, setOrder] = useState<Order>();
+  const [receiptFromPointer, setReceiptFromPointer] = useState(false);
+  const subscribeToCartPanel = useCallback((notify: () => void) => subscribeToHash(() => {
+    if (!readCartHash()) setReceiptFromPointer(false);
+    notify();
+  }), []);
+  const cartActive = useSyncExternalStore(subscribeToCartPanel, readCartHash, () => false);
+  const hasStore = Boolean(store);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -37,17 +61,26 @@ export function Storefront({ slug }: { slug: string }) {
     return () => controller.abort();
   }, [slug]);
 
+  useEffect(() => {
+    if (hasStore && cartActive && !window.matchMedia("(min-width: 48rem)").matches) {
+      document.getElementById("carrito")?.scrollIntoView({ block: "start", behavior: "instant" });
+    }
+  }, [hasStore, cartActive]);
+
   const products = store?.products ?? [];
-  const filter = query.trim().toLocaleLowerCase("es-MX");
-  const visibleProducts = filter
-    ? products.filter((product) => `${product.name} ${product.sku} ${product.description}`.toLocaleLowerCase("es-MX").includes(filter))
-    : products;
+  const visibleProducts = filterCatalogue(products, query, filters);
+  const selected = visibleProducts.find((product) => product.id === selectedId) ??
+    visibleProducts.find((product) => product.imageId) ?? visibleProducts[0];
   const cart = products.flatMap((product) => {
     const quantity = quantities[product.id];
     return quantity ? [{ product, quantity }] : [];
   });
   const cartCount = cart.reduce((count, item) => count + item.quantity, 0);
   const total = cart.reduce((cents, item) => cents + item.product.priceCents * item.quantity, 0);
+  const locked = paymentPending || refreshing;
+  const theme = store?.theme;
+  const storeName = theme?.displayName ?? store?.tenant.name ?? "Catálogo de la tienda";
+  const filtersApplied = Boolean(query.trim()) || filters.availability !== "all" || filters.maxPrice !== null || filters.sort !== "catalogue";
 
   async function refresh() {
     setRefreshing(true);
@@ -67,154 +100,195 @@ export function Storefront({ slug }: { slug: string }) {
     }
   }
 
-  function updateQuantity(product: Product, quantity: number) {
-    setQuantities((current) => ({ ...current, [product.id]: Math.max(0, Math.min(quantity, maxOrderQuantity(product.stock))) }));
+  function adjustQuantity(product: Product, update: (quantity: number) => number) {
+    setQuantities((current) => {
+      const existing = current[product.id] ?? 0;
+      if (existing === 0 && Object.keys(current).length >= maxDistinctProducts) return current;
+      const next = Math.max(0, Math.min(update(existing), maxOrderQuantity(product.stock)));
+      if (next === existing) return current;
+      if (next > 0) return { ...current, [product.id]: next };
+      return Object.fromEntries(Object.entries(current).filter(([id]) => id !== product.id));
+    });
   }
 
-  function confirm(purchase: Order) {
+  function availableToAdd(product: Product) {
+    const quantity = quantities[product.id] ?? 0;
+    if (quantity === 0 && cart.length >= maxDistinctProducts) return 0;
+    return Math.max(0, maxOrderQuantity(product.stock) - quantity);
+  }
+
+  function addToCart(product: Product, amount: number, fromPointer: boolean) {
+    setCartEntryFromPointer(fromPointer);
+    adjustQuantity(product, (quantity) => quantity + amount);
+  }
+
+  function openDetail(product: Product) {
+    setSelectedId(product.id);
+    if (cartActive) {
+      navigateToPanel("#detalle");
+    }
+    if (!window.matchMedia("(min-width: 48rem)").matches) {
+      const panel = document.getElementById("detalle");
+      panel?.scrollIntoView({ block: "start", behavior: "instant" });
+      panel?.focus({ preventScroll: true });
+    }
+  }
+
+  function confirm(purchase: Order, fromPointer: boolean) {
     setOrder(purchase);
+    setReceiptFromPointer(fromPointer);
     setQuantities({});
+    if (!readCartHash()) navigateToPanel("#carrito");
     void refresh();
   }
 
-  const theme = store?.theme;
-
   return (
     <div data-tenant-theme={theme ? "" : undefined} style={theme ? appearanceStyle(theme) : undefined} className="min-h-screen bg-background text-foreground">
-      <SkipLink />
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-2 px-5 py-2 sm:px-10">
-          <Link href="/" aria-label="Visitar otra tienda" className="min-h-11 content-center rounded-lg font-extrabold tracking-tight">
-            {theme?.logoId
-              ? <MediaImage src={storeMediaUrl(slug, theme.logoId)} alt="" className="h-11 w-28" sizes="112px" fit="contain" />
-              : "Atelier"}
-          </Link>
+      <div className="relative z-30"><SkipLink /></div>
+      <header className="sticky top-0 z-20 border-b border-border/70 bg-surface">
+        <div className="mx-auto grid max-w-[86rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-2.5 sm:px-6 md:grid-cols-[minmax(0,1fr)_minmax(14rem,min(38vw,27rem))_minmax(8rem,1fr)] lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            {theme?.logoId ? (
+              <MediaImage src={storeMediaUrl(slug, theme.logoId)} className="size-9 rounded-md md:size-10" alt="" sizes="40px" fit="contain" />
+            ) : (
+              <span className="grid size-9 shrink-0 place-items-center rounded-md bg-inset text-foreground"><StoreIcon aria-hidden="true" size={18} /></span>
+            )}
+            <div className="min-w-0">
+              <h1 className="truncate text-base leading-tight font-semibold tracking-tight md:text-lg">{storeName}</h1>
+              <Link href="/" className="inline-flex items-center gap-1 rounded-xs text-xs text-muted hover:underline">
+                Visitar otra tienda <ArrowUpRight aria-hidden="true" size={12} />
+              </Link>
+            </div>
+          </div>
           {store && (
-            <a className={secondaryClass} href="#carrito">
-              <ShoppingBag aria-hidden="true" size={17} /> <span aria-live="polite">Carrito ({cartCount})</span>
-            </a>
+            <>
+              <label className="relative col-span-2 row-start-2 flex min-w-0 md:col-span-1 md:col-start-2 md:row-start-1">
+                <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" size={17} />
+                <span className="sr-only">Buscar productos</span>
+                <input
+                  type="search"
+                  placeholder="Busca por nombre o SKU"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  className="min-h-10 w-full min-w-0 rounded-lg border border-transparent bg-inset/65 pr-3 pl-10 text-base text-foreground placeholder:text-muted focus:border-border focus:bg-surface md:text-sm"
+                />
+              </label>
+              <a
+                href="#carrito"
+                className="col-start-2 row-start-1 inline-flex min-h-11 shrink-0 items-center gap-1.5 justify-self-end rounded-lg border border-border/70 px-2.5 py-2 text-xs font-semibold text-foreground hover:bg-inset md:col-start-3 md:min-h-10 md:px-3"
+                aria-label={`Carrito (${cartCount})`}
+                aria-describedby={cartCount > 0 ? "header-cart-total" : undefined}
+              >
+                <ShoppingBag aria-hidden="true" size={16} />
+                <span>Carrito</span>
+                <span
+                  className="cart-count relative inline-grid min-h-5 min-w-5 place-items-center rounded-full bg-inset px-1 text-[11px] tabular-nums"
+                  data-filled={cartCount > 0 ? "" : undefined}
+                  data-pointer-add={cartEntryFromPointer ? "" : undefined}
+                  aria-hidden="true"
+                >
+                  <span className="cart-count-highlight pointer-events-none absolute inset-0 rounded-full bg-accent" />
+                  <span className="relative">{cartCount}</span>
+                </span>
+                {cartCount > 0 && <span id="header-cart-total" className="hidden border-l border-border pl-2 text-muted tabular-nums sm:inline">{formatMoney(total)}</span>}
+              </a>
+            </>
           )}
         </div>
       </header>
-      <main id="main-content" tabIndex={-1} className="mx-auto max-w-7xl px-5 py-8 sm:px-10 sm:py-12">
-        {theme?.bannerId && <MediaImage src={storeMediaUrl(slug, theme.bannerId)} alt="" className="mb-6 aspect-[3/1] w-full rounded-panel sm:aspect-[4/1]" sizes="(max-width: 640px) 90vw, 1120px" />}
-        <h1 className="break-words text-4xl font-extrabold tracking-tight sm:text-5xl">{theme?.displayName ?? store?.tenant.name ?? "Catálogo de la tienda"}</h1>
-        {loading && <p role="status" className="mt-4">Cargando catálogo…</p>}
+      <p role="status" className="sr-only">
+        {cartCount === 0 ? "Carrito vacío" : `Carrito: ${cartCount} ${cartCount === 1 ? "producto" : "productos"}. Total: ${formatMoney(total)}.`}
+      </p>
+
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-[86rem] scroll-mt-32 px-4 py-3 sm:px-6 md:scroll-mt-24 md:py-5 lg:px-8">
+        {theme?.bannerId && (
+          <MediaImage src={storeMediaUrl(slug, theme.bannerId)} alt="" className="mb-3 h-16 w-full rounded-panel bg-inset sm:mb-5 sm:h-24" sizes="(max-width: 640px) 94vw, 1312px" />
+        )}
+        {loading && <p role="status" className={panelClass}>Cargando catálogo…</p>}
         {error && (
-          <div className="mt-4 grid justify-items-start gap-3">
+          <div className="mb-4 grid justify-items-start gap-3">
             <Notice kind="error">{error}</Notice>
             <button type="button" className={secondaryClass} disabled={refreshing} onClick={refresh}>Volver a consultar</button>
           </div>
         )}
         {store && (
-          <div className="mt-7 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.52fr)]">
-            <section aria-labelledby="catalogue-title">
-              <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-                <h2 id="catalogue-title" className="text-2xl font-extrabold">Catálogo</h2>
-                <button type="button" className={secondaryClass} disabled={refreshing || paymentPending} onClick={refresh}>Actualizar catálogo</button>
-              </div>
-              {products.length > 0 && (
-                <div className="mb-4">
-                  <Field label="Buscar productos">
-                    <input className={fieldClass} type="search" value={query} onChange={(event) => setQuery(event.target.value)} />
-                  </Field>
-                </div>
-              )}
-              {visibleProducts.length === 0 ? (
-                <p className={`${panelClass} text-muted`}>
-                  {products.length === 0 ? "La tienda aún no tiene productos en su catálogo." : "No encontramos productos que coincidan con tu búsqueda."}
-                </p>
-              ) : (
-                <ul className="grid gap-3 sm:grid-cols-2">
-                  {visibleProducts.map((product) => {
-                    const quantity = quantities[product.id] ?? 0;
-                    const atLimit = quantity >= maxOrderQuantity(product.stock) || (quantity === 0 && cart.length >= maxDistinctProducts);
-                    return (
-                      <li key={product.id} className={`${panelClass} flex flex-col`}>
-                        {product.imageId && (
-                          <MediaImage
-                            src={storeMediaUrl(slug, product.imageId)}
-                            alt={product.name}
-                            className="mb-4 aspect-[4/3] rounded-lg bg-background"
-                            sizes="(max-width: 640px) 90vw, 400px"
-                          />
-                        )}
-                        <h3 className="break-words text-xl font-extrabold">{product.name}</h3>
-                        <p className="mt-1 break-words text-sm text-muted">{product.sku}</p>
-                        {product.description && <p className="mt-3 break-words leading-relaxed text-muted">{product.description}</p>}
-                        <p className="mt-auto pt-5 text-lg font-bold">{formatMoney(product.priceCents)}</p>
-                        <button
-                          type="button"
-                          className={`${actionClass} mt-3 self-start`}
-                          disabled={atLimit || paymentPending || refreshing || Boolean(order)}
-                          aria-label={`Agregar ${product.name} al carrito`}
-                          onClick={() => updateQuantity(product, quantity + 1)}
-                        >
-                          {product.stock === 0 ? "Agotado" : atLimit ? "Límite del carrito alcanzado" : "Agregar al carrito"}
-                        </button>
-                      </li>
-                    );
-                  })}
+          <div className="grid min-w-0 items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(16rem,0.67fr)] lg:grid-cols-[10rem_minmax(0,1fr)_minmax(17rem,0.64fr)] lg:gap-6 xl:grid-cols-[11rem_minmax(0,1fr)_19rem] 2xl:grid-cols-[11.5rem_minmax(0,1fr)_20rem]">
+            <Filters
+              products={products}
+              filters={filters}
+              onChange={setFilters}
+              onReset={() => { setFilters(initialFilters); setQuery(""); }}
+              dirty={filtersApplied}
+            />
+
+            <section className="min-w-0" aria-labelledby="catalogue-title">
+              <CatalogueToolbar count={visibleProducts.length} sort={filters.sort} onSort={(sort) => setFilters({ ...filters, sort })} onRefresh={refresh} disabled={locked} />
+              {visibleProducts.length > 0 ? (
+                <ul className="grid min-w-0 gap-x-3 gap-y-4 min-[360px]:grid-cols-2 md:gap-x-4 md:max-lg:grid-cols-1 lg:gap-x-5 lg:gap-y-6">
+                  {visibleProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      slug={slug}
+                      product={product}
+                      selected={selected?.id === product.id && !cartActive}
+                      disabled={locked || Boolean(order) || availableToAdd(product) === 0}
+                      onSelect={() => openDetail(product)}
+                      onAdd={(event) => addToCart(product, 1, event.detail > 0)}
+                    />
+                  ))}
                 </ul>
+              ) : (
+                <div className="grid min-h-36 justify-items-start gap-3 py-5 text-sm text-muted">
+                  <p>{products.length === 0 ? "La tienda aún no tiene productos en su catálogo." : "No encontramos productos con estos filtros."}</p>
+                  {filtersApplied && <button type="button" className={secondaryClass} onClick={() => { setFilters(initialFilters); setQuery(""); }}>Ver todos los productos</button>}
+                </div>
               )}
             </section>
 
-            <section id="carrito" aria-labelledby="cart-title" className={`${panelClass} scroll-mt-4`}>
-              {order ? (
-                <div className="grid gap-4">
-                  <div className="flex items-center gap-2 text-success">
-                    <Check size={20} aria-hidden="true" />
-                    <h2 id="cart-title" className="text-xl font-extrabold">Pedido confirmado</h2>
-                  </div>
-                  <Notice kind="success">El pago de prueba fue aprobado.</Notice>
-                  <p className="text-lg font-bold">Pedido {order.number}</p>
-                  <ul className="grid gap-2 border-y border-border py-4 text-sm">
-                    {order.items.map((item) => <li key={item.sku}>{item.quantity} × {item.name} · {formatMoney(item.priceCents)} c/u</li>)}
-                  </ul>
-                  <p className="font-extrabold">Total {formatMoney(order.totalCents)}</p>
-                  <button type="button" className={secondaryClass} onClick={() => setOrder(undefined)}>Seguir comprando</button>
-                </div>
-              ) : (
-                <>
-                  <h2 id="cart-title" className="text-2xl font-extrabold">Tu carrito</h2>
-                  {cart.length === 0 ? (
-                    <p className="mt-3 text-muted">Agrega un producto del catálogo para comenzar.</p>
+            <aside id="carrito" tabIndex={-1} className={`${panelClass} min-w-0 scroll-mt-32 md:scroll-mt-24 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto`} aria-label="Detalle y carrito">
+              <div id="detalle" tabIndex={-1} className="scroll-mt-32 md:scroll-mt-24">
+                <nav aria-label="Panel de compra" className="mb-4 flex min-w-0 gap-5 border-b border-border/70 text-sm">
+                  <a href="#detalle" aria-current={cartActive ? undefined : "true"} className={`flex min-h-10 items-center border-b-2 px-1 text-center ${cartActive ? "border-transparent text-muted hover:text-foreground" : "border-foreground font-semibold"}`}>Detalle</a>
+                  <a href="#carrito" aria-current={cartActive ? "true" : undefined} className={`flex min-h-10 items-center gap-1.5 border-b-2 px-1 text-center ${cartActive ? "border-foreground font-semibold" : "border-transparent text-muted hover:text-foreground"}`}>
+                    <ShoppingBag aria-hidden="true" size={14} /> Ver carrito
+                  </a>
+                </nav>
+                <div hidden={cartActive}>
+                  {selected ? (
+                    <ProductDetail
+                      key={selected.id}
+                      slug={slug}
+                      product={selected}
+                      maxQuantity={availableToAdd(selected)}
+                      disabled={locked || Boolean(order)}
+                      onAdd={(extra, fromPointer) => {
+                        addToCart(selected, extra, fromPointer);
+                        navigateToPanel("#carrito");
+                      }}
+                    />
                   ) : (
-                    <>
-                      <ul className="mt-2 divide-y divide-border">
-                        {cart.map(({ product, quantity }) => (
-                          <li key={product.id} className="grid gap-2 py-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="min-w-0 break-words font-bold">{product.name}</p>
-                              <p className="font-semibold">{formatMoney(product.priceCents * quantity)}</p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <button type="button" className={secondaryClass} aria-label={`Reducir cantidad de ${product.name}`} disabled={paymentPending || refreshing} onClick={() => updateQuantity(product, quantity - 1)}>
-                                <Minus size={16} aria-hidden="true" />
-                              </button>
-                              <span className="min-w-6 text-center font-bold">{quantity}</span>
-                              <button type="button" className={secondaryClass} aria-label={`Aumentar cantidad de ${product.name}`} disabled={paymentPending || refreshing || quantity >= maxOrderQuantity(product.stock)} onClick={() => updateQuantity(product, quantity + 1)}>
-                                <Plus size={16} aria-hidden="true" />
-                              </button>
-                              <button type="button" className="ml-auto min-h-11 cursor-pointer rounded-md px-1 text-sm font-bold underline underline-offset-4 disabled:opacity-60" aria-label={`Quitar ${product.name}`} disabled={paymentPending || refreshing} onClick={() => updateQuantity(product, 0)}>Quitar</button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                      <p className="flex justify-between gap-2 border-t border-border pt-4 text-lg font-extrabold">
-                        <span>Total estimado</span><span>{formatMoney(total)}</span>
-                      </p>
-                      <CheckoutForm
-                        slug={slug}
-                        items={cart.map(({ product, quantity }) => ({ productId: product.id, quantity }))}
-                        onPending={setPaymentPending}
-                        onConfirmation={confirm}
-                      />
-                    </>
+                    <p className="py-4 text-sm leading-relaxed text-muted">Selecciona un producto del catálogo para ver sus detalles.</p>
                   )}
-                </>
-              )}
-            </section>
+                </div>
+                <div hidden={!cartActive}>
+                  <CartPanel
+                    slug={slug}
+                    active={cartActive}
+                    cart={cart}
+                    total={total}
+                    order={order}
+                    receiptFromPointer={receiptFromPointer}
+                    onReceiptMotionEnd={() => setReceiptFromPointer(false)}
+                    locked={locked}
+                    maxOrderQuantity={maxOrderQuantity}
+                    onQuantity={(product, quantity) => adjustQuantity(product, () => quantity)}
+                    onPending={setPaymentPending}
+                    onConfirm={confirm}
+                    onContinue={() => { setOrder(undefined); navigateToPanel("#detalle"); }}
+                  />
+                </div>
+              </div>
+            </aside>
           </div>
         )}
       </main>

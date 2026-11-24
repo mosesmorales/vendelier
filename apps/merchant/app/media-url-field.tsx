@@ -2,6 +2,7 @@
 
 import { api, errorMessage, studioMediaUrl } from "@vendelier/api-client";
 import { Field, MediaImage, Notice, fieldClass, secondaryClass } from "@vendelier/ui";
+import { Link2 } from "lucide-react";
 import { useId, useState } from "react";
 
 interface MediaUrlFieldProps {
@@ -18,6 +19,7 @@ export function MediaUrlField({ label, target, imageId, disabled, onChange, onPe
   const [value, setValue] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const assetThumbnail = imageId && target !== "imagen";
 
   async function importImage() {
     if (disabled || pending) return;
@@ -51,26 +53,33 @@ export function MediaUrlField({ label, target, imageId, disabled, onChange, onPe
 
   return (
     <div className="grid gap-2">
-      <Field label={label} hint={{ id: hintId, text: "Usa una URL pública HTTPS que apunte a una imagen PNG, JPG o WebP." }}>
-        <input
-          className={fieldClass}
-          inputMode="url"
-          autoCapitalize="none"
-          spellCheck={false}
-          value={value}
-          aria-describedby={hintId}
-          disabled={disabled || pending}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              void importImage();
-            }
-          }}
-        />
-      </Field>
+      <div className={assetThumbnail ? "grid grid-cols-[3rem_minmax(0,1fr)] items-start gap-3" : undefined}>
+        {assetThumbnail && (
+          <MediaImage src={studioMediaUrl(imageId)} alt="" className="mt-6 size-12 rounded-lg bg-inset" sizes="48px" fit={target === "logo" ? "contain" : "cover"} />
+        )}
+        <Field label={label} hint={{ id: hintId, text: "Enlace HTTPS directo a PNG, JPG o WebP." }}>
+          <input
+            className={fieldClass}
+            inputMode="url"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder="https://…"
+            value={value}
+            aria-describedby={hintId}
+            disabled={disabled || pending}
+            onChange={(event) => setValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void importImage();
+              }
+            }}
+          />
+        </Field>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={secondaryClass} disabled={disabled || pending || !value.trim()} onClick={importImage}>
+          <Link2 size={15} aria-hidden="true" />
           {pending ? "Importando…" : `Importar ${target}`}
         </button>
         {imageId && (

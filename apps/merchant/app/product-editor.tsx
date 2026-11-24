@@ -47,7 +47,7 @@ export function ProductEditor({ product, disabled, onSave, onCancel }: ProductEd
 
   return (
     <form id="editar-producto" onSubmit={submit} className={`${panelClass} grid h-fit gap-4`}>
-      <h3 className="text-xl font-extrabold">{product ? "Editar producto" : "Agregar producto"}</h3>
+      <h3 className="border-b border-border pb-3 text-lg font-semibold tracking-tight">{product ? "Editar producto" : "Agregar producto"}</h3>
       <Field label="Nombre del producto">
         <input name="name" required maxLength={160} className={fieldClass} defaultValue={product?.name} />
       </Field>
