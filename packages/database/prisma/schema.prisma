@@ -1,0 +1,168 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TenantStatus {
+  ACTIVE    @map("active")
+  SUSPENDED @map("suspended")
+
+  @@map("tenant_status")
+}
+
+enum MembershipRole {
+  OWNER   @map("owner")
+  ADMIN   @map("admin")
+  CATALOG @map("catalog")
+  ORDERS  @map("orders")
+  ANALYST @map("analyst")
+
+  @@map("membership_role")
+}
+
+enum ThemeScope {
+  STUDIO     @map("studio")
+  STOREFRONT @map("storefront")
+
+  @@map("theme_scope")
+}
+
+enum OrderStatus {
+  PENDING   @map("pending")
+  FULFILLED @map("fulfilled")
+
+  @@map("order_status")
+}
+
+model Tenant {
+  id          String                @id @default(uuid()) @db.Uuid
+  slug        String                @unique
+  name        String
+  status      TenantStatus          @default(ACTIVE)
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  publishedAt DateTime?             @map("published_at") @db.Timestamptz(3)
+  memberships Membership[]
+  themes      TenantThemeSettings[]
+  products    Product[]
+  orders      Order[]
+  mediaAssets MediaAsset[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String       @id @default(uuid()) @db.Uuid
+  email        String       @unique
+  passwordHash String       @map("password_hash")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  memberships  Membership[]
+
+  @@map("users")
+}
+
+model Membership {
+  tenantId      String                @map("tenant_id") @db.Uuid
+  userId        String                @map("user_id") @db.Uuid
+  role          MembershipRole
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  themesUpdated TenantThemeSettings[]
+
+  @@id([tenantId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+model TenantThemeSettings {
+  tenantId      String      @map("tenant_id") @db.Uuid
+  scope         ThemeScope
+  draftJson     Json        @default("{}") @map("draft_json")
+  publishedJson Json?       @map("published_json")
+  version       Int         @default(0)
+  draftRevision Int         @default(0) @map("draft_revision")
+  updatedById   String?     @map("updated_by") @db.Uuid
+  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  publishedAt   DateTime?   @map("published_at") @db.Timestamptz(3)
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  updatedBy     Membership? @relation(fields: [tenantId, updatedById], references: [tenantId, userId], onDelete: Restrict)
+
+  @@id([tenantId, scope])
+  @@index([tenantId, updatedById])
+  @@map("tenant_theme_settings")
+}
+
+model Product {
+  id          String      @id @default(uuid()) @db.Uuid
+  tenantId    String      @map("tenant_id") @db.Uuid
+  name        String
+  description String
+  sku         String
+  priceCents  Int         @map("price_cents")
+  stock       Int
+  imageId     String?     @map("image_id") @db.Uuid
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  image       MediaAsset? @relation(fields: [tenantId, imageId], references: [tenantId, id], onDelete: Restrict)
+  orderItems  OrderItem[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, sku])
+  @@index([tenantId, imageId])
+  @@map("products")
+}
+
+model MediaAsset {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  byteLength Int       @map("byte_length")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  products   Product[]
+
+  @@unique([tenantId, id])
+  @@map("media_assets")
+}
+
+model Order {
+  id              String      @id @default(uuid()) @db.Uuid
+  tenantId        String      @map("tenant_id") @db.Uuid
+  number          String
+  checkoutKey     String      @map("checkout_key") @db.Uuid
+  customerName    String      @map("customer_name")
+  customerEmail   String      @map("customer_email")
+  customerAddress String      @map("customer_address")
+  totalCents      Int         @map("total_cents")
+  status          OrderStatus @default(PENDING)
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  items           OrderItem[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, number])
+  @@unique([tenantId, checkoutKey])
+  @@index([tenantId, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String  @id @default(uuid()) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  orderId    String  @map("order_id") @db.Uuid
+  productId  String  @map("product_id") @db.Uuid
+  name       String
+  sku        String
+  quantity   Int
+  priceCents Int     @map("price_cents")
+  order      Order   @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  product    Product @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
+
+  @@index([tenantId, orderId])
+  @@index([tenantId, productId])
+  @@map("order_items")
+}

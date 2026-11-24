@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - name: Verificar PostgreSQL y aislamiento
+        run: |
+          cp .env.example .env
+          docker compose up --wait postgres
+          pnpm --filter @vendelier/database db:migrate
+          pnpm --filter @vendelier/database db:seed
+          pnpm --filter @vendelier/database db:test
+      - name: Verificar el flujo de comercio
+        env:
+          API_FLOW_TEST: "1"
+        run: |
+          export SESSION_SECRET=$(node -p "require('node:crypto').randomBytes(32).toString('hex')")
+          export DEMO_ADMIN_TOKEN=$(node -p "require('node:crypto').randomBytes(32).toString('hex')")
+          pnpm --filter @vendelier/api test

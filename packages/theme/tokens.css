@@ -1,0 +1,83 @@
+:root {
+  color-scheme: light;
+  --vd-background: #f4f2ed;
+  --vd-surface: #ffffff;
+  --vd-text: #141414;
+  --vd-muted: #6b6b6b;
+  --vd-border: #e7e7e4;
+  --vd-primary: #141414;
+  --vd-on-primary: #ffffff;
+  --vd-accent: #d6f36a;
+  --vd-on-accent: #141414;
+  --vd-focus: #476100;
+  --vd-danger: #9e2525;
+  --vd-success: #28623d;
+  --vd-sand: #e3ded3;
+  --vd-radius: 1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --vd-background: #111111;
+    --vd-surface: #242424;
+    --vd-text: #ffffff;
+    --vd-muted: #bdbdbd;
+    --vd-border: #383838;
+    --vd-primary: #ffffff;
+    --vd-on-primary: #141414;
+    --vd-focus: #d6f36a;
+    --vd-danger: #ff9b9b;
+    --vd-success: #a0ddb2;
+  }
+}
+
+@supports (color: light-dark(white, black)) {
+  [data-tenant-theme] {
+    --vd-background: var(--vd-theme-background);
+    --vd-surface: var(--vd-theme-surface);
+    --vd-text: var(--vd-theme-text);
+    --vd-accent: var(--vd-theme-accent);
+    --vd-on-accent: var(--vd-theme-on-accent);
+    --vd-primary: var(--vd-text);
+    --vd-on-primary: var(--vd-background);
+    --vd-muted: var(--vd-text);
+    --vd-border: color-mix(in srgb, var(--vd-text) 23%, var(--vd-surface));
+    --vd-focus: var(--vd-text);
+    --vd-danger: var(--vd-theme-danger);
+    --vd-success: var(--vd-theme-success);
+  }
+}
+
+[data-appearance-mode="light"] { color-scheme: light; }
+[data-appearance-mode="dark"] { color-scheme: dark; }
+
+@theme inline {
+  --color-background: var(--vd-background);
+  --color-surface: var(--vd-surface);
+  --color-foreground: var(--vd-text);
+  --color-muted: var(--vd-muted);
+  --color-border: var(--vd-border);
+  --color-primary: var(--vd-primary);
+  --color-on-primary: var(--vd-on-primary);
+  --color-accent: var(--vd-accent);
+  --color-on-accent: var(--vd-on-accent);
+  --color-focus: var(--vd-focus);
+  --color-danger: var(--vd-danger);
+  --color-success: var(--vd-success);
+  --color-sand: var(--vd-sand);
+  --radius-panel: var(--vd-radius);
+  --font-sans: "Urbanist Variable", system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    background: var(--vd-background);
+    color: var(--vd-text);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--vd-focus);
+    outline-offset: 4px;
+  }
+}

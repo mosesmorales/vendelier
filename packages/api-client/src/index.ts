@@ -1,0 +1,191 @@
+export interface Tenant {
+  slug: string;
+  name: string;
+  published: boolean;
+}
+
+export interface Session {
+  user: { email: string };
+  tenant: Tenant;
+}
+
+export interface ProductInput {
+  name: string;
+  description: string;
+  sku: string;
+  priceCents: number;
+  stock: number;
+  imageId?: string | null;
+}
+
+export interface Product extends ProductInput {
+  id: string;
+  imageId: string | null;
+}
+
+export interface Order {
+  id: string;
+  number: string;
+  totalCents: number;
+  customerName: string;
+  createdAt: string;
+  status: "pending" | "fulfilled";
+  items: { name: string; sku: string; quantity: number; priceCents: number }[];
+}
+
+export interface StudioOverview {
+  tenant: Tenant;
+  products: Product[];
+  orders: Order[];
+  theme: AppearanceTheme | null;
+}
+
+export interface Store {
+  tenant: Tenant;
+  products: Product[];
+  theme: AppearanceTheme | null;
+}
+
+export type ThemeScope = "studio" | "storefront";
+export type ThemeMode = "light" | "dark";
+
+export interface ThemePalette {
+  background: string;
+  surface: string;
+  text: string;
+  accent: string;
+}
+
+export interface AppearanceTheme {
+  displayName: string;
+  logoId: string | null;
+  bannerId: string | null;
+  light: ThemePalette;
+  dark: ThemePalette;
+}
+
+export interface ThemeState {
+  draft: AppearanceTheme;
+  published: AppearanceTheme | null;
+  version: number;
+  revision: number;
+}
+
+export type AppearanceState = Record<ThemeScope, ThemeState>;
+
+export interface CheckoutInput {
+  checkoutKey: string;
+  items: { productId: string; quantity: number }[];
+  customer: { name: string; email: string; address: string };
+  payment: "approved" | "declined";
+}
+
+export interface PlatformOverview {
+  tenants: (Tenant & { status: "active" | "suspended" })[];
+  orderCount: number;
+  revenueCents: number;
+}
+
+interface Credentials {
+  email: string;
+  password: string;
+}
+
+export interface Registration extends Credentials {
+  storeName: string;
+  slug: string;
+}
+
+export const websiteUrl = process.env.NEXT_PUBLIC_WEBSITE_URL ?? "http://localhost:3000";
+export const platformUrl = process.env.NEXT_PUBLIC_PLATFORM_URL ?? "http://localhost:3001";
+export const studioUrl = process.env.NEXT_PUBLIC_STUDIO_URL ?? "http://localhost:3002";
+export const storefrontUrl = process.env.NEXT_PUBLIC_STOREFRONT_URL ?? "http://localhost:3003";
+
+export function websiteLoginUrl() {
+  const url = new URL(websiteUrl);
+  url.searchParams.set("mode", "login");
+  url.hash = "acceso";
+  return url.href;
+}
+
+export const storeUrl = (slug: string) =>
+  new URL(encodeURIComponent(slug), storefrontUrl.replace(/\/?$/, "/")).href;
+
+const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
+
+export const studioMediaUrl = (id: string) => `${apiUrl}/studio/media/${encodeURIComponent(id)}`;
+export const storeMediaUrl = (slug: string, id: string) =>
+  `${apiUrl}/store/${encodeURIComponent(slug)}/media/${encodeURIComponent(id)}`;
+
+export class ApiError extends Error {
+  constructor(readonly status: number) {
+    super("Error al consultar la API");
+    this.name = "ApiError";
+  }
+}
+
+export function errorStatus(error: unknown) {
+  return error instanceof ApiError ? error.status : undefined;
+}
+
+export function errorMessage(
+  error: unknown,
+  fallback: string,
+  messages: Partial<Record<number, string>> = {},
+) {
+  const status = errorStatus(error);
+  if (status && messages[status]) return messages[status];
+  if (error instanceof TypeError) return "No pudimos conectar con el servicio. Inténtalo de nuevo.";
+  return fallback;
+}
+
+interface RequestOptions {
+  method?: "POST" | "PATCH";
+  body?: unknown;
+  token?: string;
+  signal?: AbortSignal;
+}
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const headers = new Headers({ Accept: "application/json" });
+  if (options.body !== undefined) headers.set("Content-Type", "application/json");
+  if (options.token) headers.set("Authorization", `Bearer ${options.token}`);
+
+  const response = await fetch(apiUrl + path, {
+    method: options.method ?? "GET",
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    credentials: "include",
+    cache: "no-store",
+    headers,
+    signal: options.signal,
+  });
+
+  if (!response.ok) throw new ApiError(response.status);
+  return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
+}
+
+export const api = {
+  register: (body: Registration) => request<Session>("/auth/register", { method: "POST", body }),
+  login: (body: Credentials) => request<Session>("/auth/login", { method: "POST", body }),
+  logout: () => request<void>("/auth/logout", { method: "POST" }),
+  studio: (signal?: AbortSignal) => request<StudioOverview>("/studio/overview", { signal }),
+  appearance: (signal?: AbortSignal) => request<AppearanceState>("/studio/appearance", { signal }),
+  saveAppearance: (scope: ThemeScope, draft: AppearanceTheme, revision: number) =>
+    request<ThemeState>(`/studio/appearance/${scope}`, { method: "PATCH", body: { draft, revision } }),
+  publishAppearance: (scope: ThemeScope, revision: number) =>
+    request<ThemeState>(`/studio/appearance/${scope}/publish`, { method: "POST", body: { revision } }),
+  importMedia: (url: string) => request<{ id: string }>("/studio/media", { method: "POST", body: { url } }),
+  createProduct: (body: ProductInput) => request<Product>("/studio/products", { method: "POST", body }),
+  updateProduct: (id: string, body: Partial<ProductInput>) =>
+    request<Product>(`/studio/products/${encodeURIComponent(id)}`, { method: "PATCH", body }),
+  publish: () => request<Tenant>("/studio/publish", { method: "POST" }),
+  fulfill: (id: string) =>
+    request<Order>(`/studio/orders/${encodeURIComponent(id)}/fulfillment`, {
+      method: "PATCH",
+      body: { status: "fulfilled" },
+    }),
+  store: (slug: string, signal?: AbortSignal) => request<Store>(`/store/${encodeURIComponent(slug)}`, { signal }),
+  checkout: (slug: string, body: CheckoutInput) =>
+    request<Order>(`/store/${encodeURIComponent(slug)}/checkout`, { method: "POST", body }),
+  platform: (token: string) => request<PlatformOverview>("/platform/overview", { token }),
+};

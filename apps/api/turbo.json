@@ -1,0 +1,18 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "dev": {
+      "passThroughEnv": [
+        "API_HOST",
+        "API_PORT",
+        "API_CORS_ORIGINS",
+        "DATABASE_URL",
+        "SESSION_SECRET",
+        "SESSION_COOKIE_SECURE",
+        "DEMO_ADMIN_TOKEN",
+        "MEDIA_*",
+        "AWS_*"
+      ]
+    }
+  }
+}
