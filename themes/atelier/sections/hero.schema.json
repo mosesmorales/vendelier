@@ -1,0 +1,8 @@
+{
+  "name": "Hero principal",
+  "settings": [
+    { "id": "title", "type": "text", "label": "Título", "default": "Descubre nuestra colección" },
+    { "id": "buttonText", "type": "text", "label": "Texto del botón", "default": "Ver catálogo" },
+    { "id": "buttonUrl", "type": "url", "label": "Destino", "default": "" }
+  ]
+}

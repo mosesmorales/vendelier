@@ -1,0 +1,21 @@
+{
+  "layout": "theme",
+  "sections": {
+    "hero_01": {
+      "type": "hero",
+      "settings": {
+        "title": "Descubre nuestra colección",
+        "buttonText": "Ver catálogo",
+        "buttonUrl": ""
+      }
+    },
+    "featured_01": {
+      "type": "featured-products",
+      "settings": {
+        "title": "Catálogo",
+        "limit": 24
+      }
+    }
+  },
+  "order": ["hero_01", "featured_01"]
+}

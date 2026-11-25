@@ -1,0 +1,15 @@
+<section aria-labelledby="catalog-title">
+  <div class="section-heading">
+    <h2 id="catalog-title">{{ section.settings.title }}</h2>
+    {% unless preview %}<a href="{{ shop.catalog_url | safe_url }}">Ir a la tienda</a>{% endunless %}
+  </div>
+  {% if products.size > 0 %}
+    <ul class="products">
+      {% for product in products limit: section.settings.limit %}
+        <li>{% render product-card.liquid, product: product %}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Este catálogo todavía no tiene productos.</p>
+  {% endif %}
+</section>

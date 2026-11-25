@@ -1,0 +1,7 @@
+<section class="hero" aria-label="{{ section.settings.title }}">
+  {% if shop.banner_url %}<img class="banner" src="{{ shop.banner_url | image_url }}" alt="">{% endif %}
+  {% if section.settings.title != blank %}<p class="caption">{{ section.settings.title }}</p>{% endif %}
+  {% if section.settings.buttonUrl != blank and section.settings.buttonText != blank %}
+    <p><a href="{{ section.settings.buttonUrl | safe_url }}">{{ section.settings.buttonText }}</a></p>
+  {% endif %}
+</section>

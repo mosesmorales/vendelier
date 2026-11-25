@@ -1,5 +1,5 @@
-import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
-import { findLoginAccount, findOwnerTenant, registerOwner } from "@vendelier/database";
+import { ConflictException, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { findLoginAccount, findMemberTenant, type MemberRole, registerOwner } from "@vendelier/database";
 import { hasDatabaseError } from "./database-errors.js";
 import { DatabaseService } from "./database.service.js";
 import type { LoginDto, RegisterDto } from "./dto.js";
@@ -26,7 +26,10 @@ export class AuthService {
     });
 
     return {
-      body: { user: { email: input.email }, tenant: { name: input.storeName, slug: input.slug, published: false } },
+      body: {
+        user: { email: input.email, role: "owner" as MemberRole },
+        tenant: { name: input.storeName, slug: input.slug, published: false },
+      },
       cookie: createSessionCookie(owner.userId, input.email, secret),
     };
   }
@@ -43,17 +46,26 @@ export class AuthService {
     return { body: session, cookie: createSessionCookie(account.id, account.email, secret) };
   }
 
-  requireSession(cookie: string | undefined) {
+  async requireSession(cookie: string | undefined, allowedRoles?: readonly MemberRole[]) {
     const claim = requireSessionClaims(cookie);
-    return this.loadSession(claim.userId, claim.email);
+    const loaded = await this.loadSession(claim.userId, claim.email);
+    if (allowedRoles && !allowedRoles.includes(loaded.role)) {
+      throw new ForbiddenException("Your role does not allow this action.");
+    }
+    return loaded;
   }
 
   private async loadSession(userId: string, email: string) {
-    const tenant = await findOwnerTenant(this.database.connection, userId);
+    const tenant = await findMemberTenant(this.database.connection, userId);
     if (!tenant) {
       throw new UnauthorizedException("An active store membership is required.");
     }
 
-    return { userId, tenantId: tenant.id, session: { user: { email }, tenant: tenantView(tenant) } };
+    return {
+      userId,
+      tenantId: tenant.id,
+      role: tenant.role,
+      session: { user: { email, role: tenant.role }, tenant: tenantView(tenant) },
+    };
   }
 }

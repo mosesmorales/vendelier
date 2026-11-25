@@ -3,13 +3,14 @@
 import { api, errorMessage, errorStatus, studioMediaUrl, storeUrl, websiteLoginUrl, websiteUrl, type AppearanceTheme, type Order, type Product, type ProductInput, type StudioOverview } from "@vendelier/api-client";
 import { actionClass, appearanceStyle, DashboardShell, dashboardLinkClass, fieldClass, formatDate, formatMoney, MediaImage, Notice, panelClass, quietClass, secondaryClass } from "@vendelier/ui";
 import { VendelierWordmark } from "@vendelier/ui/brand";
-import { ArrowUpRight, Copy, LayoutDashboard, LogOut, Package, Palette, Receipt, RefreshCw } from "lucide-react";
+import { ArrowUpRight, Copy, LayoutDashboard, LogOut, Package, Palette, Receipt, RefreshCw, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { AppearanceEditor } from "./appearance-editor";
 import { OverviewPanel } from "./overview-panel";
 import { ProductEditor } from "./product-editor";
+import { TeamPanel } from "./team-panel";
 
 
 const sectionLinks = [
@@ -17,6 +18,7 @@ const sectionLinks = [
   { id: "catalogo", label: "Catálogo e inventario", Icon: Package },
   { id: "pedidos", label: "Pedidos", Icon: Receipt },
   { id: "apariencia", label: "Apariencia y marca", Icon: Palette },
+  { id: "equipo", label: "Equipo y permisos", Icon: Users },
 ] as const;
 
 function currentSection() {
@@ -382,6 +384,10 @@ export function Studio() {
 
           <div id="apariencia" hidden={section !== "apariencia"}>
             <AppearanceEditor key={overview.tenant.slug} studioName={overview.tenant.name} publicUrl={publicUrl} products={overview.products} onPublishStudio={applyStudioTheme} />
+          </div>
+
+          <div id="equipo" hidden={section !== "equipo"}>
+            <TeamPanel />
           </div>
         </>
       )}

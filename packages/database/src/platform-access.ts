@@ -72,6 +72,19 @@ export async function registerOwner(database: PrismaClient, input: OwnerRegistra
   }
 }
 
+export type MemberRole = "owner" | "admin" | "catalog" | "orders" | "analyst";
+
+export type MemberTenantIdentity = TenantIdentity & {
+  role: MemberRole;
+};
+
+export type TenantMember = {
+  userId: string;
+  email: string;
+  role: MemberRole;
+  createdAt: Date;
+};
+
 /** Pass the id from a verified session. */
 export async function findOwnerTenant(database: PrismaClient, userId: string) {
   const [tenant] = await database.$queryRaw<TenantIdentity[]>`
@@ -79,6 +92,73 @@ export async function findOwnerTenant(database: PrismaClient, userId: string) {
     FROM public.vendelier_find_owner_tenant(${userId}::uuid)
   `;
   return tenant ?? null;
+}
+
+/** Pass the id from a verified session. */
+export async function findMemberTenant(database: PrismaClient, userId: string) {
+  const [tenant] = await database.$queryRaw<MemberTenantIdentity[]>`
+    SELECT id, slug, name, published_at AS "publishedAt", role::text AS role
+    FROM public.vendelier_find_member_tenant(${userId}::uuid)
+  `;
+  return tenant ?? null;
+}
+
+export async function listTenantMembers(database: PrismaClient, tenantId: string) {
+  return database.$queryRaw<TenantMember[]>`
+    SELECT user_id AS "userId", email, role::text AS role, created_at AS "createdAt"
+    FROM public.vendelier_list_tenant_members(${tenantId}::uuid)
+  `;
+}
+
+export async function inviteTenantMember(
+  database: PrismaClient,
+  input: { tenantId: string; email: string; defaultHash: string; role: Exclude<MemberRole, "owner"> },
+) {
+  try {
+    const [member] = await database.$queryRaw<TenantMember[]>`
+      SELECT user_id AS "userId", email, role::text AS role, created_at AS "createdAt"
+      FROM public.vendelier_invite_tenant_member(
+        ${input.tenantId}::uuid,
+        ${input.email}::text,
+        ${input.defaultHash}::text,
+        ${input.role}::public.membership_role
+      )
+    `;
+    return member;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2010") {
+      const adapterError = error.meta?.driverAdapterError as { cause?: { kind?: string } } | undefined;
+      if (adapterError?.cause?.kind === "UniqueConstraintViolation") {
+        throw new Prisma.PrismaClientKnownRequestError("The user is already a member of this store.", {
+          code: "P2002",
+          clientVersion: error.clientVersion,
+        });
+      }
+    }
+    throw error;
+  }
+}
+
+export async function updateTenantMemberRole(
+  database: PrismaClient,
+  input: { tenantId: string; userId: string; role: Exclude<MemberRole, "owner"> },
+) {
+  const [member] = await database.$queryRaw<TenantMember[]>`
+    SELECT user_id AS "userId", email, role::text AS role, created_at AS "createdAt"
+    FROM public.vendelier_update_member_role(
+      ${input.tenantId}::uuid,
+      ${input.userId}::uuid,
+      ${input.role}::public.membership_role
+    )
+  `;
+  return member ?? null;
+}
+
+export async function removeTenantMember(database: PrismaClient, tenantId: string, userId: string) {
+  const [result] = await database.$queryRaw<{ removed: boolean }[]>`
+    SELECT public.vendelier_remove_tenant_member(${tenantId}::uuid, ${userId}::uuid) AS removed
+  `;
+  return result?.removed ?? false;
 }
 
 export async function findPublishedTenant(database: PrismaClient, slug: string) {

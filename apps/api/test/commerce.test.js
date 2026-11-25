@@ -38,7 +38,7 @@ flowTest("runs the sandbox sale across tenant, storefront, Studio, and platform 
     expect(registered.headers.get("set-cookie")).toMatch(/HttpOnly; SameSite=Lax/);
     const registrationCookie = registered.headers.get("set-cookie").split(";")[0];
     expect(registered.data).toEqual({
-      user: { email: owner.email },
+      user: { email: owner.email, role: "owner" },
       tenant: { slug: owner.slug, name: owner.storeName, published: false },
     });
 

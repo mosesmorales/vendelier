@@ -72,7 +72,7 @@ export class StudioController {
 
   @Post("products")
   async createProduct(@Headers("cookie") cookie: string | undefined, @Body() input: CreateProductDto) {
-    const { tenantId } = await this.auth.requireSession(cookie);
+    const { tenantId } = await this.auth.requireSession(cookie, ["owner", "admin", "catalog"]);
     const { options, variants, ...baseInput } = input;
     const totalStock = variants && variants.length > 0
       ? variants.reduce((sum, v) => sum + v.stock, 0)
@@ -98,7 +98,7 @@ export class StudioController {
     @Param("id", ParseUUIDPipe) id: string,
     @Body() input: UpdateProductDto,
   ) {
-    const { tenantId } = await this.auth.requireSession(cookie);
+    const { tenantId } = await this.auth.requireSession(cookie, ["owner", "admin", "catalog"]);
     const { options, variants, ...baseInput } = input;
     const data = variants && variants.length > 0
       ? { ...baseInput, stock: variants.reduce((sum, v) => sum + v.stock, 0) }
@@ -124,7 +124,7 @@ export class StudioController {
     @Headers("cookie") cookie: string | undefined,
     @Param("id", ParseUUIDPipe) id: string,
   ) {
-    const { tenantId } = await this.auth.requireSession(cookie);
+    const { tenantId } = await this.auth.requireSession(cookie, ["owner", "admin", "catalog"]);
     await withTenant(this.database.connection, tenantId, async (tx) => {
       await tx.product.delete({ where: { tenantId_id: { tenantId, id } } });
     }).catch((error: unknown) => {
@@ -141,7 +141,7 @@ export class StudioController {
   @Post("publish")
   @HttpCode(HttpStatus.OK)
   async publish(@Headers("cookie") cookie: string | undefined) {
-    const { tenantId } = await this.auth.requireSession(cookie);
+    const { tenantId } = await this.auth.requireSession(cookie, ["owner", "admin"]);
     const tenant = await withTenant(this.database.connection, tenantId, async (tx) => {
       await tx.tenant.updateMany({
         where: { id: tenantId, publishedAt: null },
@@ -158,7 +158,7 @@ export class StudioController {
     @Param("id", ParseUUIDPipe) id: string,
     @Body() input: FulfillmentDto,
   ) {
-    const { tenantId } = await this.auth.requireSession(cookie);
+    const { tenantId } = await this.auth.requireSession(cookie, ["owner", "admin", "orders"]);
     const status = { fulfilled: OrderStatus.FULFILLED }[input.status];
     const order = await withTenant(this.database.connection, tenantId, (tx) =>
       tx.order.update({

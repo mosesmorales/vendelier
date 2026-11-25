@@ -159,7 +159,7 @@ export class AppearanceController {
   }
 
   private async revise(cookie: string | undefined, scopeName: ScopeName, revision: number, draft?: AppearanceDto) {
-    const { tenantId, userId, session } = await this.auth.requireSession(cookie);
+    const { tenantId, userId, session } = await this.auth.requireSession(cookie, ["owner", "admin", "catalog"]);
     const tenantName = session.tenant.name;
     const scope = databaseScopes[scopeName];
     const where = { tenantId_scope: { tenantId, scope } };

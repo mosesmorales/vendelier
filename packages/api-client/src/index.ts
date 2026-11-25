@@ -4,8 +4,18 @@ export interface Tenant {
   published: boolean;
 }
 
+export type MemberRole = "owner" | "admin" | "catalog" | "orders" | "analyst";
+export type AssignableMemberRole = Exclude<MemberRole, "owner">;
+
+export interface TenantMember {
+  userId: string;
+  email: string;
+  role: MemberRole;
+  createdAt: string;
+}
+
 export interface Session {
-  user: { email: string };
+  user: { email: string; role?: MemberRole };
   tenant: Tenant;
 }
 
@@ -217,6 +227,13 @@ export const api = {
   logout: () => request<void>("/auth/logout", { method: "POST" }),
   studio: (signal?: AbortSignal) => request<StudioOverview>("/studio/overview", { signal }),
   studioOrders: (signal?: AbortSignal) => request<Order[]>("/studio/orders", { signal }),
+  team: (signal?: AbortSignal) => request<TenantMember[]>("/studio/team", { signal }),
+  inviteMember: (email: string, role: AssignableMemberRole) =>
+    request<TenantMember>("/studio/team/invite", { method: "POST", body: { email, role } }),
+  updateMemberRole: (userId: string, role: AssignableMemberRole) =>
+    request<TenantMember>(`/studio/team/${encodeURIComponent(userId)}`, { method: "PATCH", body: { role } }),
+  removeMember: (userId: string) =>
+    request<void>(`/studio/team/${encodeURIComponent(userId)}`, { method: "DELETE" }),
   appearance: (signal?: AbortSignal) => request<AppearanceState>("/studio/appearance", { signal }),
   saveAppearance: (scope: ThemeScope, draft: AppearanceTheme, revision: number) =>
     request<ThemeState>(`/studio/appearance/${scope}`, { method: "PATCH", body: { draft, revision } }),

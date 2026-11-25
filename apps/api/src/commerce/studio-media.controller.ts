@@ -30,7 +30,7 @@ export class StudioMediaController {
 
   @Post()
   async importImage(@Headers("cookie") cookie: string | undefined, @Body() input: ImportImageDto) {
-    const { tenantId } = await this.auth.requireSession(cookie);
+    const { tenantId } = await this.auth.requireSession(cookie, ["owner", "admin", "catalog"]);
     const id = randomUUID();
     const byteLength = await this.storage.importImage(tenantId, id, input.url);
     try {

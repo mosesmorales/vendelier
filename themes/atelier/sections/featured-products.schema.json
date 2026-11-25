@@ -1,0 +1,7 @@
+{
+  "name": "Productos destacados",
+  "settings": [
+    { "id": "title", "type": "text", "label": "Título de sección", "default": "Catálogo" },
+    { "id": "limit", "type": "range", "label": "Máximo de productos", "min": 1, "max": 24, "default": 24 }
+  ]
+}

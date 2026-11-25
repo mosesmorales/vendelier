@@ -26,14 +26,22 @@ export type TenantTransaction = Prisma.TransactionClient;
 
 export {
   findLoginAccount,
+  findMemberTenant,
   findOwnerTenant,
   findPublishedTenant,
   getPlatformAuditLogs,
   getPlatformOverview,
+  inviteTenantMember,
+  listTenantMembers,
   registerOwner,
+  removeTenantMember,
   setPlatformTenantStatus,
+  updateTenantMemberRole,
+  type MemberRole,
+  type MemberTenantIdentity,
   type PlatformAuditEntry,
   type PlatformTenant,
+  type TenantMember,
 } from "./platform-access.js";
 export { MembershipRole, OrderStatus, TenantStatus, ThemeScope } from "./generated/enums.js";
 export type { Prisma, PrismaClient };
