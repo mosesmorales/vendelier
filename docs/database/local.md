@@ -27,7 +27,7 @@ pnpm --filter @vendelier/database db:seed
 pnpm --filter @vendelier/database db:test
 ```
 
-El contenedor publica PostgreSQL en `127.0.0.1:5432`. Los roles se inicializan al crear el volumen de datos. Si cambias las contraseñas de referencia, actualiza también las URLs correspondientes. El servidor HTTP del monolito usa un puerto distinto. Sus módulos de negocio comparten el cliente Prisma del proceso a través de `DATABASE_URL`.
+El contenedor publica PostgreSQL en `127.0.0.1:5432`. Los roles se inicializan al crear el volumen de datos. Si cambias las contraseñas de referencia, actualiza también las URLs correspondientes. La aplicación backend (`@vendelier/api`) conecta con PostgreSQL usando el cliente Prisma a través de `DATABASE_URL`.
 
 | Variable | Propósito |
 | --- | --- |
@@ -37,10 +37,10 @@ El contenedor publica PostgreSQL en `127.0.0.1:5432`. Los roles se inicializan a
 | `SESSION_SECRET` | Firma de las sesiones de propietario. |
 | `DEMO_ADMIN_TOKEN` | Clave del panel de plataforma para la demostración local. |
 
-Los datos de demostración crean Urban Kicks, Casa Studio y Bloom con una configuración de marca para Studio y otra para Storefront. Las seeds conservan los datos existentes. Para probar registro, catálogo y publicación desde la interfaz, crea una cuenta de prueba y publica su tienda desde Studio. Usa `docker compose down` para detener PostgreSQL y conservar el volumen.
+Los datos de demostración (`prisma/seed.ts`) crean y publican **Urban Kicks**, **Casa Studio** y **Bloom** junto con sus cuentas propietarias (`owner@urbankicks.mx`, `owner@casastudio.mx`, `owner@bloom.mx`), temas de Studio y Storefront en formato `AppearanceTheme`, productos con opciones/variantes y pedidos de muestra. Las seeds conservan los datos existentes. Usa `docker compose down` para detener PostgreSQL y conservar el volumen.
 
 ## Aislamiento de base de datos
 
-`vendelier_migrator` aplica las migraciones y carga las seeds. `vendelier_app` opera sobre catálogo, pedidos, temas y medios bajo políticas de seguridad a nivel de fila (RLS). Solo puede actualizar las columnas que requiere la demostración. Las operaciones de identidad usan funciones de alcance reducido. El rol de ejecución carece de acceso directo a `users`.
+`vendelier_migrator` aplica las migraciones y carga las seeds. `vendelier_app` opera sobre catálogo (`products`, `product_options`, `product_option_values`, `product_variants`), pedidos, temas y medios bajo políticas de seguridad a nivel de fila (RLS). Solo puede actualizar las columnas que requiere la demostración. Las operaciones de identidad y control de plataforma (`vendelier_platform_set_tenant_status`, `vendelier_platform_audit_logs`, `platform_audit_logs`) usan funciones `SECURITY DEFINER` de alcance reducido. El rol de ejecución carece de acceso directo a `users`.
 
-`withTenant` fija el identificador de empresa en el contexto local de la transacción. Los servicios de Studio resuelven la empresa desde la sesión. En Storefront, la API resuelve un slug público y verifica que la tienda esté publicada. Las claves compuestas impiden cruzar productos, pedidos e imágenes de distintas empresas.
+`withTenant` fija el identificador de empresa en el contexto local de la transacción. Los servicios de Studio resuelven la empresa desde la sesión. En Storefront, la API resuelve un slug público y verifica que la tienda esté publicada y activa (`status = 'active'`). Las claves compuestas impiden cruzar productos, variantes, pedidos e imágenes de distintas empresas.

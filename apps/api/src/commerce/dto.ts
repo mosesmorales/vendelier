@@ -10,6 +10,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsObject,
+  IsOptional,
   IsString,
   IsUUID,
   Matches,
@@ -65,6 +66,62 @@ export class RegisterDto extends LoginDto {
   slug!: string;
 }
 
+export class ProductOptionInputDto {
+  @ApiProperty({ maxLength: 60 })
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  name!: string;
+
+  @ApiProperty({ type: [String], minItems: 1, maxItems: 30 })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(30)
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @MaxLength(60, { each: true })
+  values!: string[];
+}
+
+export class ProductVariantInputDto {
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @NormalizeUuid()
+  @IsUUID()
+  id?: string;
+
+  @ApiProperty({ maxLength: 120 })
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  title!: string;
+
+  @ApiProperty({ maxLength: 80 })
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  sku!: string;
+
+  @ApiProperty({ minimum: 0, maximum: MAX_DATABASE_INT })
+  @IsInt()
+  @Min(0)
+  @Max(MAX_DATABASE_INT)
+  priceCents!: number;
+
+  @ApiProperty({ minimum: 0, maximum: MAX_DATABASE_INT })
+  @IsInt()
+  @Min(0)
+  @Max(MAX_DATABASE_INT)
+  stock!: number;
+
+  @ApiProperty({ type: "object", additionalProperties: { type: "string" } })
+  @IsObject()
+  selectedOptions!: Record<string, string>;
+}
+
 export class CreateProductDto {
   @ApiProperty({ maxLength: 160 })
   @Trim()
@@ -103,6 +160,22 @@ export class CreateProductDto {
   @ValidateIf((_object: unknown, value: unknown) => value !== null && value !== undefined)
   @IsUUID()
   imageId?: string | null;
+
+  @ApiPropertyOptional({ type: [ProductOptionInputDto], maxItems: 5 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @ValidateNested({ each: true })
+  @Type(() => ProductOptionInputDto)
+  options?: ProductOptionInputDto[];
+
+  @ApiPropertyOptional({ type: [ProductVariantInputDto], maxItems: 100 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ProductVariantInputDto)
+  variants?: ProductVariantInputDto[];
 }
 
 export class UpdateProductDto extends PartialType(CreateProductDto, { skipNullProperties: false }) {}
@@ -113,11 +186,30 @@ export class FulfillmentDto {
   status!: "fulfilled";
 }
 
+export class UpdateTenantStatusDto {
+  @ApiProperty({ enum: ["active", "suspended"] })
+  @IsIn(["active", "suspended"])
+  status!: "active" | "suspended";
+
+  @ApiPropertyOptional({ maxLength: 300 })
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(300)
+  reason?: string;
+}
+
 class CheckoutItemDto {
   @ApiProperty({ format: "uuid" })
   @NormalizeUuid()
   @IsUUID()
   productId!: string;
+
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @NormalizeUuid()
+  @IsUUID()
+  variantId?: string;
 
   @ApiProperty({ minimum: 1, maximum: 100 })
   @IsInt()

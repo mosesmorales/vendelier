@@ -3,15 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node --env-file-if-exists=../../.env server.mjs --dev",
+    "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "node --env-file-if-exists=../../.env server.mjs",
+    "start": "next start -p ${VENDELIER_PORT:-3000} -H ${VENDELIER_HOST:-127.0.0.1}",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@fontsource-variable/space-grotesk": "5.3.0",
-    "@vendelier/api": "workspace:*",
     "@vendelier/api-client": "workspace:*",
     "@vendelier/theme": "workspace:*",
     "@vendelier/ui": "workspace:*",

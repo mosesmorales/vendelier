@@ -6,12 +6,15 @@
         "VENDELIER_HOST",
         "VENDELIER_PORT",
         "VENDELIER_ORIGIN",
-        "DATABASE_URL",
-        "SESSION_SECRET",
-        "SESSION_COOKIE_SECURE",
-        "DEMO_ADMIN_TOKEN",
-        "MEDIA_*",
-        "AWS_*"
+        "API_INTERNAL_URL"
+      ]
+    },
+    "start": {
+      "passThroughEnv": [
+        "VENDELIER_HOST",
+        "VENDELIER_PORT",
+        "VENDELIER_ORIGIN",
+        "API_INTERNAL_URL"
       ]
     }
   }

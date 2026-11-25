@@ -125,6 +125,25 @@ export function Studio() {
     }
   }
 
+  async function removeProduct(product: Product) {
+    setBusy(true);
+    setCatalogNotice("");
+    try {
+      await api.deleteProduct(product.id);
+      setOverview((current) => current && ({
+        ...current,
+        products: current.products.filter((item) => item.id !== product.id),
+      }));
+      setEditing(undefined);
+      setCatalogNotice(`Producto "${product.name}" eliminado.`);
+    } catch (cause) {
+      if (errorStatus(cause) === 401) reportError(cause, "No pudimos eliminar el producto.");
+      throw cause;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function publish() {
     return run(async () => {
       const tenant = await api.publish();
@@ -277,7 +296,9 @@ export function Studio() {
                               ) : <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-md bg-inset text-muted sm:size-10"><Package size={16} /></span>}
                               <div className="min-w-0">
                                 <p className="wrap-break-word font-semibold">{product.name}</p>
-                                <p className="mt-0.5 wrap-break-word text-xs text-muted">{product.sku}</p>
+                                <p className="mt-0.5 wrap-break-word text-xs text-muted">
+                                  {product.sku}{product.variants.length > 0 ? ` · ${product.variants.length} variantes` : ""}
+                                </p>
                                 <p className="mt-0.5 text-xs tabular-nums sm:hidden">{formatMoney(product.priceCents)}</p>
                               </div>
                             </div>
@@ -300,7 +321,14 @@ export function Studio() {
                   </table>
                 )}
               </section>
-              <ProductEditor key={editing?.id ?? "new"} product={editing} disabled={busy} onSave={saveProduct} onCancel={() => setEditing(undefined)} />
+              <ProductEditor
+                key={editing?.id ?? "new"}
+                product={editing}
+                disabled={busy}
+                onSave={saveProduct}
+                onDelete={removeProduct}
+                onCancel={() => setEditing(undefined)}
+              />
             </div>
           </div>
 
@@ -321,7 +349,10 @@ export function Studio() {
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="break-words font-semibold">Pedido {order.number}</p>
-                          <p className="mt-1 break-words text-sm text-muted">{order.customerName} · {formatDate(order.createdAt)}</p>
+                          <p className="mt-1 break-words text-sm text-muted">
+                            {order.customerName}{order.customerEmail ? ` (${order.customerEmail})` : ""} · {formatDate(order.createdAt)}
+                          </p>
+                          {order.customerAddress && <p className="mt-0.5 break-words text-xs text-muted">{order.customerAddress}</p>}
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
                           <span className="text-sm font-semibold tabular-nums">{formatMoney(order.totalCents)}</span>
@@ -335,7 +366,11 @@ export function Studio() {
                       <details className="mt-3 text-sm">
                         <summary className="cursor-pointer font-semibold">Ver artículos</summary>
                         <ul className="mt-2 grid gap-1 rounded-lg bg-inset p-3 text-muted">
-                          {order.items.map((item) => <li key={item.sku}>{item.quantity} × {item.name} · {formatMoney(item.priceCents)} c/u</li>)}
+                          {order.items.map((item) => (
+                            <li key={item.sku}>
+                              {item.quantity} × {item.name}{item.variantTitle ? ` (${item.variantTitle})` : ""} · {formatMoney(item.priceCents)} c/u
+                            </li>
+                          ))}
                         </ul>
                       </details>
                     </li>
@@ -355,13 +390,15 @@ export function Studio() {
 }
 
 async function saveChanges(product: Product, values: ProductInput): Promise<Product | undefined> {
-  const changes = {
+  const changes: Partial<ProductInput> = {
     name: product.name === values.name ? undefined : values.name,
     sku: product.sku === values.sku ? undefined : values.sku,
     description: product.description === values.description ? undefined : values.description,
     priceCents: product.priceCents === values.priceCents ? undefined : values.priceCents,
     stock: product.stock === values.stock ? undefined : values.stock,
     imageId: product.imageId === values.imageId ? undefined : values.imageId,
+    options: values.options,
+    variants: values.variants,
   };
 
   if (Object.values(changes).every((value) => value === undefined)) return;

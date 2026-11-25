@@ -9,6 +9,28 @@ export interface Session {
   tenant: Tenant;
 }
 
+export interface ProductOptionInput {
+  name: string;
+  values: string[];
+}
+
+export interface ProductOption extends ProductOptionInput {
+  id: string;
+}
+
+export interface ProductVariantInput {
+  id?: string;
+  title: string;
+  sku: string;
+  priceCents: number;
+  stock: number;
+  selectedOptions: Record<string, string>;
+}
+
+export interface ProductVariant extends ProductVariantInput {
+  id: string;
+}
+
 export interface ProductInput {
   name: string;
   description: string;
@@ -16,11 +38,20 @@ export interface ProductInput {
   priceCents: number;
   stock: number;
   imageId?: string | null;
+  options?: ProductOptionInput[];
+  variants?: ProductVariantInput[];
 }
 
-export interface Product extends ProductInput {
+export interface Product {
   id: string;
+  name: string;
+  description: string;
+  sku: string;
+  priceCents: number;
+  stock: number;
   imageId: string | null;
+  options: ProductOption[];
+  variants: ProductVariant[];
 }
 
 export interface Order {
@@ -28,9 +59,11 @@ export interface Order {
   number: string;
   totalCents: number;
   customerName: string;
+  customerEmail?: string;
+  customerAddress?: string;
   createdAt: string;
   status: "pending" | "fulfilled";
-  items: { name: string; sku: string; quantity: number; priceCents: number }[];
+  items: { name: string; variantTitle?: string; sku: string; quantity: number; priceCents: number }[];
 }
 
 export interface StudioOverview {
@@ -75,15 +108,29 @@ export type AppearanceState = Record<ThemeScope, ThemeState>;
 
 export interface CheckoutInput {
   checkoutKey: string;
-  items: { productId: string; quantity: number }[];
+  items: { productId: string; variantId?: string; quantity: number }[];
   customer: { name: string; email: string; address: string };
   payment: "approved" | "declined";
 }
 
+export interface PlatformAuditEntry {
+  id: string;
+  actor: string;
+  action: string;
+  targetSlug: string;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface PlatformTenant extends Tenant {
+  status: "active" | "suspended";
+}
+
 export interface PlatformOverview {
-  tenants: (Tenant & { status: "active" | "suspended" })[];
+  tenants: PlatformTenant[];
   orderCount: number;
   revenueCents: number;
+  auditLogs: PlatformAuditEntry[];
 }
 
 interface Credentials {
@@ -140,7 +187,7 @@ export function errorMessage(
 }
 
 interface RequestOptions {
-  method?: "POST" | "PATCH";
+  method?: "POST" | "PATCH" | "DELETE";
   body?: unknown;
   token?: string;
   signal?: AbortSignal;
@@ -169,6 +216,7 @@ export const api = {
   login: (body: Credentials) => request<Session>("/auth/login", { method: "POST", body }),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
   studio: (signal?: AbortSignal) => request<StudioOverview>("/studio/overview", { signal }),
+  studioOrders: (signal?: AbortSignal) => request<Order[]>("/studio/orders", { signal }),
   appearance: (signal?: AbortSignal) => request<AppearanceState>("/studio/appearance", { signal }),
   saveAppearance: (scope: ThemeScope, draft: AppearanceTheme, revision: number) =>
     request<ThemeState>(`/studio/appearance/${scope}`, { method: "PATCH", body: { draft, revision } }),
@@ -178,6 +226,8 @@ export const api = {
   createProduct: (body: ProductInput) => request<Product>("/studio/products", { method: "POST", body }),
   updateProduct: (id: string, body: Partial<ProductInput>) =>
     request<Product>(`/studio/products/${encodeURIComponent(id)}`, { method: "PATCH", body }),
+  deleteProduct: (id: string) =>
+    request<void>(`/studio/products/${encodeURIComponent(id)}`, { method: "DELETE" }),
   publish: () => request<Tenant>("/studio/publish", { method: "POST" }),
   fulfill: (id: string) =>
     request<Order>(`/studio/orders/${encodeURIComponent(id)}/fulfillment`, {
@@ -188,4 +238,10 @@ export const api = {
   checkout: (slug: string, body: CheckoutInput) =>
     request<Order>(`/store/${encodeURIComponent(slug)}/checkout`, { method: "POST", body }),
   platform: (token: string) => request<PlatformOverview>("/platform/overview", { token }),
+  setTenantStatus: (token: string, slug: string, status: "active" | "suspended", reason?: string) =>
+    request<PlatformTenant>(`/platform/tenants/${encodeURIComponent(slug)}/status`, {
+      method: "PATCH",
+      token,
+      body: { status, ...(reason ? { reason } : {}) },
+    }),
 };

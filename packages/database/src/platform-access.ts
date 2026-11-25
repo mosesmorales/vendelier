@@ -25,11 +25,20 @@ type TenantIdentity = {
   publishedAt: Date | null;
 };
 
-type PlatformTenant = {
+export type PlatformTenant = {
   slug: string;
   name: string;
   published: boolean;
   status: "active" | "suspended";
+};
+
+export type PlatformAuditEntry = {
+  id: string;
+  actor: string;
+  action: string;
+  targetSlug: string;
+  details: Record<string, unknown>;
+  createdAt: Date;
 };
 
 export async function findLoginAccount(database: PrismaClient, email: string) {
@@ -90,9 +99,36 @@ export async function getPlatformOverview(database: PrismaClient) {
     SELECT tenants, order_count AS "orderCount", revenue_cents AS "revenueCents"
     FROM public.vendelier_platform_overview()
   `;
+  const auditLogs = await getPlatformAuditLogs(database);
   return {
     tenants: overview.tenants,
     orderCount: Number(overview.orderCount),
     revenueCents: Number(overview.revenueCents),
+    auditLogs,
   };
+}
+
+/** Requires platform authorization at the API boundary. */
+export async function setPlatformTenantStatus(
+  database: PrismaClient,
+  input: { slug: string; status: "active" | "suspended"; actor: string; reason?: string },
+) {
+  const [tenant] = await database.$queryRaw<PlatformTenant[]>`
+    SELECT slug, name, published, status::text AS status
+    FROM public.vendelier_platform_set_tenant_status(
+      ${input.slug}::text,
+      ${input.status}::public.tenant_status,
+      ${input.actor}::text,
+      ${input.reason ?? null}::text
+    )
+  `;
+  return tenant ?? null;
+}
+
+/** Requires platform authorization at the API boundary. */
+export async function getPlatformAuditLogs(database: PrismaClient, limit = 50) {
+  return database.$queryRaw<PlatformAuditEntry[]>`
+    SELECT id, actor, action, target_slug AS "targetSlug", details, created_at AS "createdAt"
+    FROM public.vendelier_platform_audit_logs(${limit}::integer)
+  `;
 }

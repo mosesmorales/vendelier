@@ -24,7 +24,7 @@ import { hasDatabaseError } from "./database-errors.js";
 import { DatabaseService } from "./database.service.js";
 import { CheckoutDto, MAX_DATABASE_INT, isTenantSlug } from "./dto.js";
 import { webpFile } from "./media-access.js";
-import { orderView, productView, tenantView } from "./views.js";
+import { orderView, productInclude, productView, tenantView } from "./views.js";
 
 @ApiTags("Storefront")
 @Controller("store")
@@ -39,6 +39,7 @@ export class StoreController {
       const products = await tx.product.findMany({
         where: { tenantId: tenant.id },
         orderBy: [{ name: "asc" }, { id: "asc" }],
+        include: productInclude,
       });
       const theme = await publishedAppearance(tx, tenant.id, ThemeScope.STOREFRONT, tenant.name);
       return { tenant: tenantView(tenant), products: products.map(productView), theme };
@@ -84,11 +85,16 @@ export class StoreController {
       throw new HttpException("The simulated payment was declined.", HttpStatus.PAYMENT_REQUIRED);
     }
 
-    // Lock products in the same order across concurrent checkouts.
-    const requestedItems = [...input.items].sort((a, b) => a.productId.localeCompare(b.productId));
-    const requestedQuantities = new Map(requestedItems.map(({ productId, quantity }) => [productId, quantity]));
+    const itemKey = (productId: string, variantId?: string | null) => `${productId}:${variantId ?? ""}`;
+    // Lock products/variants in deterministic order across concurrent checkouts.
+    const requestedItems = [...input.items].sort((a, b) =>
+      itemKey(a.productId, a.variantId).localeCompare(itemKey(b.productId, b.variantId)),
+    );
+    const requestedQuantities = new Map(
+      requestedItems.map(({ productId, variantId, quantity }) => [itemKey(productId, variantId), quantity]),
+    );
     if (requestedQuantities.size !== requestedItems.length) {
-      throw new BadRequestException("Each product may appear only once in a checkout.");
+      throw new BadRequestException("Each product variant may appear only once in a checkout.");
     }
 
     return withTenant(this.database.connection, tenantId, async (tx) => {
@@ -99,30 +105,84 @@ export class StoreController {
 
       const existing = await tx.order.findUnique({
         where: { tenantId_checkoutKey: { tenantId, checkoutKey: input.checkoutKey } },
-        include: { items: { orderBy: { productId: "asc" } } },
+        include: { items: { orderBy: [{ productId: "asc" }, { id: "asc" }] } },
       });
       const customer = input.customer;
       if (existing) {
-        if (existing.customerName !== customer.name || existing.customerEmail !== customer.email ||
-          existing.customerAddress !== customer.address || existing.items.length !== requestedItems.length ||
-          existing.items.some(({ productId, quantity }) => requestedQuantities.get(productId) !== quantity)) {
+        if (
+          existing.customerName !== customer.name ||
+          existing.customerEmail !== customer.email ||
+          existing.customerAddress !== customer.address ||
+          existing.items.length !== requestedItems.length ||
+          existing.items.some(
+            ({ productId, variantId, quantity }) => requestedQuantities.get(itemKey(productId, variantId)) !== quantity,
+          )
+        ) {
           throw new ConflictException("That checkout key was already used for a different order.");
         }
         return orderView(existing);
       }
 
-      const items: Array<{ productId: string; name: string; sku: string; quantity: number; priceCents: number }> = [];
-      for (const { productId, quantity } of requestedItems) {
-        const product = await tx.product.update({
-          where: { tenantId_id: { tenantId, id: productId }, stock: { gte: quantity } },
-          data: { stock: { decrement: quantity } },
-        }).catch((error: unknown) => {
-          if (hasDatabaseError(error, "P2025")) {
-            throw new ConflictException("A product is unavailable in the requested quantity.");
-          }
-          throw error;
-        });
-        items.push({ productId, name: product.name, sku: product.sku, quantity, priceCents: product.priceCents });
+      const items: Array<{
+        productId: string;
+        variantId: string | null;
+        name: string;
+        variantTitle: string | null;
+        sku: string;
+        quantity: number;
+        priceCents: number;
+      }> = [];
+
+      for (const { productId, variantId, quantity } of requestedItems) {
+        if (variantId) {
+          const variant = await tx.productVariant.update({
+            where: { tenantId_id: { tenantId, id: variantId }, productId, stock: { gte: quantity } },
+            data: { stock: { decrement: quantity } },
+            include: { product: { select: { name: true } } },
+          }).catch((error: unknown) => {
+            if (hasDatabaseError(error, "P2025")) {
+              throw new ConflictException("A product variant is unavailable in the requested quantity.");
+            }
+            throw error;
+          });
+          await tx.product.update({
+            where: { tenantId_id: { tenantId, id: productId }, stock: { gte: quantity } },
+            data: { stock: { decrement: quantity } },
+          }).catch((error: unknown) => {
+            if (hasDatabaseError(error, "P2025")) {
+              throw new ConflictException("A product is unavailable in the requested quantity.");
+            }
+            throw error;
+          });
+          items.push({
+            productId,
+            variantId,
+            name: variant.product.name,
+            variantTitle: variant.title,
+            sku: variant.sku,
+            quantity,
+            priceCents: variant.priceCents,
+          });
+        } else {
+          const product = await tx.product.update({
+            where: { tenantId_id: { tenantId, id: productId }, stock: { gte: quantity } },
+            data: { stock: { decrement: quantity } },
+          }).catch((error: unknown) => {
+            if (hasDatabaseError(error, "P2025")) {
+              throw new ConflictException("A product is unavailable in the requested quantity.");
+            }
+            throw error;
+          });
+          items.push({
+            productId,
+            variantId: null,
+            name: product.name,
+            variantTitle: null,
+            sku: product.sku,
+            quantity,
+            priceCents: product.priceCents,
+          });
+        }
       }
 
       const totalCents = items.reduce((sum, { priceCents, quantity }) => sum + priceCents * quantity, 0);

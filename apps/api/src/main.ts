@@ -8,9 +8,14 @@ async function bootstrap() {
     throw new Error("API_PORT must be an integer between 1 and 65535.");
   }
 
-  const app = await createApp();
+  const app = await createApp(undefined, {
+    globalPrefix: process.env.API_PREFIX ?? "api",
+    publicOrigin: process.env.VENDELIER_ORIGIN,
+  });
   app.enableShutdownHooks();
   await app.listen(port, host);
+  const address = host.includes(":") ? `[${host}]` : host;
+  console.log(`Vendelier API listening at http://${address}:${port}`);
 }
 
 void bootstrap().catch((error: unknown) => {

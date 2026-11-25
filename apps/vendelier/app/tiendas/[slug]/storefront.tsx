@@ -1,18 +1,66 @@
 "use client";
 
-import { api, errorMessage, storeAtelierUrl, storeMediaUrl, storefrontUrl, type Order, type Product, type Store } from "@vendelier/api-client";
+import {
+  api,
+  errorMessage,
+  storeAtelierUrl,
+  storeMediaUrl,
+  storefrontUrl,
+  type Order,
+  type Product,
+  type ProductVariant,
+  type Store,
+} from "@vendelier/api-client";
 import { appearanceStyle, formatMoney, MediaImage, Notice, panelClass, secondaryClass, SkipLink } from "@vendelier/ui";
 import { ArrowUpRight, Search, ShoppingBag, Store as StoreIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { CatalogueToolbar, filterCatalogue, Filters, initialFilters, ProductCard } from "./catalogue";
-import { CartPanel, ProductDetail } from "./purchase-panel";
+import { CartPanel, ProductDetail, type CartLine } from "./purchase-panel";
 
 const maxDistinctProducts = 50;
 const maxQuantityPerProduct = 100;
 
 function maxOrderQuantity(stock: number) {
   return Math.min(stock, maxQuantityPerProduct);
+}
+
+function lineKey(productId: string, variantId?: string) {
+  return `${productId}:${variantId ?? ""}`;
+}
+
+function cartStorageKey(slug: string) {
+  return `vendelier:cart:${slug}`;
+}
+
+function loadStoredCart(slug: string): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(cartStorageKey(slug));
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter((entry): entry is [string, number] =>
+        typeof entry[0] === "string" && typeof entry[1] === "number" && Number.isInteger(entry[1]) && entry[1] > 0,
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function saveStoredCart(slug: string, quantities: Record<string, number>) {
+  if (typeof window === "undefined") return;
+  try {
+    if (Object.keys(quantities).length === 0) {
+      window.localStorage.removeItem(cartStorageKey(slug));
+    } else {
+      window.localStorage.setItem(cartStorageKey(slug), JSON.stringify(quantities));
+    }
+  } catch {
+    // Ignore storage quota / private mode failures.
+  }
 }
 
 function subscribeToHash(notify: () => void) {
@@ -37,7 +85,8 @@ export function Storefront({ slug }: { slug: string }) {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState(initialFilters);
   const [selectedId, setSelectedId] = useState<string>();
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [selectedVariantByProduct, setSelectedVariantByProduct] = useState<Record<string, string>>({});
+  const [quantities, setQuantities] = useState<Record<string, number>>(() => loadStoredCart(slug));
   const [cartEntryFromPointer, setCartEntryFromPointer] = useState(false);
   const [order, setOrder] = useState<Order>();
   const [receiptFromPointer, setReceiptFromPointer] = useState(false);
@@ -62,6 +111,10 @@ export function Storefront({ slug }: { slug: string }) {
   }, [slug]);
 
   useEffect(() => {
+    saveStoredCart(slug, quantities);
+  }, [slug, quantities]);
+
+  useEffect(() => {
     if (hasStore && cartActive && !window.matchMedia("(min-width: 48rem)").matches) {
       document.getElementById("carrito")?.scrollIntoView({ block: "start", behavior: "instant" });
     }
@@ -71,12 +124,37 @@ export function Storefront({ slug }: { slug: string }) {
   const visibleProducts = filterCatalogue(products, query, filters);
   const selected = visibleProducts.find((product) => product.id === selectedId) ??
     visibleProducts.find((product) => product.imageId) ?? visibleProducts[0];
-  const cart = products.flatMap((product) => {
-    const quantity = quantities[product.id];
-    return quantity ? [{ product, quantity }] : [];
-  });
+
+  function activeVariantFor(product: Product): ProductVariant | undefined {
+    if (product.variants.length === 0) return undefined;
+    const chosenId = selectedVariantByProduct[product.id];
+    return product.variants.find((v) => v.id === chosenId) ??
+      product.variants.find((v) => v.stock > 0) ??
+      product.variants[0];
+  }
+
+  const selectedVariant = selected ? activeVariantFor(selected) : undefined;
+
+  const cart: CartLine[] = [];
+  for (const product of products) {
+    if (product.variants.length > 0) {
+      for (const variant of product.variants) {
+        const key = lineKey(product.id, variant.id);
+        const quantity = quantities[key];
+        if (quantity) cart.push({ key, product, variant, quantity });
+      }
+    } else {
+      const key = lineKey(product.id);
+      const quantity = quantities[key];
+      if (quantity) cart.push({ key, product, quantity });
+    }
+  }
+
   const cartCount = cart.reduce((count, item) => count + item.quantity, 0);
-  const total = cart.reduce((cents, item) => cents + item.product.priceCents * item.quantity, 0);
+  const total = cart.reduce((cents, item) => {
+    const price = item.variant ? item.variant.priceCents : item.product.priceCents;
+    return cents + price * item.quantity;
+  }, 0);
   const locked = paymentPending || refreshing;
   const theme = store?.theme;
   const storeName = theme?.displayName ?? store?.tenant.name ?? "Catálogo de la tienda";
@@ -88,11 +166,23 @@ export function Storefront({ slug }: { slug: string }) {
     try {
       const updated = await api.store(slug);
       setStore(updated);
-      setQuantities((current) => Object.fromEntries(
-        updated.products
-          .map(({ id, stock }) => [id, Math.min(current[id] ?? 0, maxOrderQuantity(stock))] as const)
-          .filter(([, quantity]) => quantity > 0),
-      ));
+      setQuantities((current) => {
+        const nextEntries: [string, number][] = [];
+        for (const product of updated.products) {
+          if (product.variants.length > 0) {
+            for (const variant of product.variants) {
+              const key = lineKey(product.id, variant.id);
+              const qty = Math.min(current[key] ?? 0, maxOrderQuantity(variant.stock));
+              if (qty > 0) nextEntries.push([key, qty]);
+            }
+          } else {
+            const key = lineKey(product.id);
+            const qty = Math.min(current[key] ?? 0, maxOrderQuantity(product.stock));
+            if (qty > 0) nextEntries.push([key, qty]);
+          }
+        }
+        return Object.fromEntries(nextEntries);
+      });
     } catch (cause) {
       setError(storeError(cause));
     } finally {
@@ -100,26 +190,30 @@ export function Storefront({ slug }: { slug: string }) {
     }
   }
 
-  function adjustQuantity(product: Product, update: (quantity: number) => number) {
+  function adjustLineQuantity(key: string, stock: number, update: (quantity: number) => number) {
     setQuantities((current) => {
-      const existing = current[product.id] ?? 0;
+      const existing = current[key] ?? 0;
       if (existing === 0 && Object.keys(current).length >= maxDistinctProducts) return current;
-      const next = Math.max(0, Math.min(update(existing), maxOrderQuantity(product.stock)));
+      const next = Math.max(0, Math.min(update(existing), maxOrderQuantity(stock)));
       if (next === existing) return current;
-      if (next > 0) return { ...current, [product.id]: next };
-      return Object.fromEntries(Object.entries(current).filter(([id]) => id !== product.id));
+      if (next > 0) return { ...current, [key]: next };
+      return Object.fromEntries(Object.entries(current).filter(([id]) => id !== key));
     });
   }
 
-  function availableToAdd(product: Product) {
-    const quantity = quantities[product.id] ?? 0;
+  function availableToAdd(product: Product, variant?: ProductVariant) {
+    const key = lineKey(product.id, variant?.id);
+    const stock = variant ? variant.stock : product.stock;
+    const quantity = quantities[key] ?? 0;
     if (quantity === 0 && cart.length >= maxDistinctProducts) return 0;
-    return Math.max(0, maxOrderQuantity(product.stock) - quantity);
+    return Math.max(0, maxOrderQuantity(stock) - quantity);
   }
 
-  function addToCart(product: Product, amount: number, fromPointer: boolean) {
+  function addToCart(product: Product, variant: ProductVariant | undefined, amount: number, fromPointer: boolean) {
     setCartEntryFromPointer(fromPointer);
-    adjustQuantity(product, (quantity) => quantity + amount);
+    const key = lineKey(product.id, variant?.id);
+    const stock = variant ? variant.stock : product.stock;
+    adjustLineQuantity(key, stock, (quantity) => quantity + amount);
   }
 
   function openDetail(product: Product) {
@@ -225,17 +319,20 @@ export function Storefront({ slug }: { slug: string }) {
               <CatalogueToolbar count={visibleProducts.length} sort={filters.sort} onSort={(sort) => setFilters({ ...filters, sort })} onRefresh={refresh} disabled={locked} />
               {visibleProducts.length > 0 ? (
                 <ul className="grid min-w-0 gap-x-3 gap-y-4 min-[360px]:grid-cols-2 md:gap-x-4 md:max-lg:grid-cols-1 lg:gap-x-5 lg:gap-y-6">
-                  {visibleProducts.map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      slug={slug}
-                      product={product}
-                      selected={selected?.id === product.id && !cartActive}
-                      disabled={locked || Boolean(order) || availableToAdd(product) === 0}
-                      onSelect={() => openDetail(product)}
-                      onAdd={(event) => addToCart(product, 1, event.detail > 0)}
-                    />
-                  ))}
+                  {visibleProducts.map((product) => {
+                    const defaultVariant = activeVariantFor(product);
+                    return (
+                      <ProductCard
+                        key={product.id}
+                        slug={slug}
+                        product={product}
+                        selected={selected?.id === product.id && !cartActive}
+                        disabled={locked || Boolean(order) || availableToAdd(product, defaultVariant) === 0}
+                        onSelect={() => openDetail(product)}
+                        onAdd={(event) => addToCart(product, defaultVariant, 1, event.detail > 0)}
+                      />
+                    );
+                  })}
                 </ul>
               ) : (
                 <div className="grid min-h-36 justify-items-start gap-3 py-5 text-sm text-muted">
@@ -259,10 +356,14 @@ export function Storefront({ slug }: { slug: string }) {
                       key={selected.id}
                       slug={slug}
                       product={selected}
-                      maxQuantity={availableToAdd(selected)}
+                      selectedVariant={selectedVariant}
+                      onSelectVariant={(variantId) =>
+                        setSelectedVariantByProduct((current) => ({ ...current, [selected.id]: variantId }))
+                      }
+                      maxQuantity={availableToAdd(selected, selectedVariant)}
                       disabled={locked || Boolean(order)}
                       onAdd={(extra, fromPointer) => {
-                        addToCart(selected, extra, fromPointer);
+                        addToCart(selected, selectedVariant, extra, fromPointer);
                         navigateToPanel("#carrito");
                       }}
                     />
@@ -281,7 +382,9 @@ export function Storefront({ slug }: { slug: string }) {
                     onReceiptMotionEnd={() => setReceiptFromPointer(false)}
                     locked={locked}
                     maxOrderQuantity={maxOrderQuantity}
-                    onQuantity={(product, quantity) => adjustQuantity(product, () => quantity)}
+                    onQuantity={(line, quantity) =>
+                      adjustLineQuantity(line.key, line.variant ? line.variant.stock : line.product.stock, () => quantity)
+                    }
                     onPending={setPaymentPending}
                     onConfirm={confirm}
                     onContinue={() => { setOrder(undefined); navigateToPanel("#detalle"); }}

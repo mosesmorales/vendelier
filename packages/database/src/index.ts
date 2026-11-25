@@ -22,12 +22,18 @@ export function withTenant<T>(
   );
 }
 
+export type TenantTransaction = Prisma.TransactionClient;
+
 export {
   findLoginAccount,
   findOwnerTenant,
   findPublishedTenant,
+  getPlatformAuditLogs,
   getPlatformOverview,
   registerOwner,
+  setPlatformTenantStatus,
+  type PlatformAuditEntry,
+  type PlatformTenant,
 } from "./platform-access.js";
 export { MembershipRole, OrderStatus, TenantStatus, ThemeScope } from "./generated/enums.js";
 export type { Prisma, PrismaClient };

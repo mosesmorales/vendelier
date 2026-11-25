@@ -41,17 +41,21 @@ enum OrderStatus {
 }
 
 model Tenant {
-  id          String                @id @default(uuid()) @db.Uuid
-  slug        String                @unique
-  name        String
-  status      TenantStatus          @default(ACTIVE)
-  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
-  publishedAt DateTime?             @map("published_at") @db.Timestamptz(3)
-  memberships Membership[]
-  themes      TenantThemeSettings[]
-  products    Product[]
-  orders      Order[]
-  mediaAssets MediaAsset[]
+  id             String                @id @default(uuid()) @db.Uuid
+  slug           String                @unique
+  name           String
+  status         TenantStatus          @default(ACTIVE)
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  publishedAt    DateTime?             @map("published_at") @db.Timestamptz(3)
+  memberships    Membership[]
+  themes         TenantThemeSettings[]
+  products       Product[]
+  productOptions ProductOption[]
+  optionValues   ProductOptionValue[]
+  variants       ProductVariant[]
+  orders         Order[]
+  mediaAssets    MediaAsset[]
+  auditLogs      PlatformAuditLog[]
 
   @@map("tenants")
 }
@@ -99,22 +103,75 @@ model TenantThemeSettings {
 }
 
 model Product {
-  id          String      @id @default(uuid()) @db.Uuid
-  tenantId    String      @map("tenant_id") @db.Uuid
+  id          String           @id @default(uuid()) @db.Uuid
+  tenantId    String           @map("tenant_id") @db.Uuid
   name        String
   description String
   sku         String
-  priceCents  Int         @map("price_cents")
+  priceCents  Int              @map("price_cents")
   stock       Int
-  imageId     String?     @map("image_id") @db.Uuid
-  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  image       MediaAsset? @relation(fields: [tenantId, imageId], references: [tenantId, id], onDelete: Restrict)
+  imageId     String?          @map("image_id") @db.Uuid
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  image       MediaAsset?      @relation(fields: [tenantId, imageId], references: [tenantId, id], onDelete: Restrict)
+  options     ProductOption[]
+  variants    ProductVariant[]
   orderItems  OrderItem[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, sku])
   @@index([tenantId, imageId])
   @@map("products")
+}
+
+model ProductOption {
+  id        String               @id @default(uuid()) @db.Uuid
+  tenantId  String               @map("tenant_id") @db.Uuid
+  productId String               @map("product_id") @db.Uuid
+  name      String
+  position  Int                  @default(0)
+  tenant    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  product   Product              @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Cascade)
+  values    ProductOptionValue[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, productId, name])
+  @@index([tenantId, productId])
+  @@map("product_options")
+}
+
+model ProductOptionValue {
+  id       String        @id @default(uuid()) @db.Uuid
+  tenantId String        @map("tenant_id") @db.Uuid
+  optionId String        @map("option_id") @db.Uuid
+  value    String
+  position Int           @default(0)
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  option   ProductOption @relation(fields: [tenantId, optionId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, optionId, value])
+  @@index([tenantId, optionId])
+  @@map("product_option_values")
+}
+
+model ProductVariant {
+  id              String      @id @default(uuid()) @db.Uuid
+  tenantId        String      @map("tenant_id") @db.Uuid
+  productId       String      @map("product_id") @db.Uuid
+  title           String
+  sku             String
+  priceCents      Int         @map("price_cents")
+  stock           Int
+  selectedOptions Json        @default("{}") @map("selected_options")
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  product         Product     @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Cascade)
+  orderItems      OrderItem[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, productId, title])
+  @@unique([tenantId, sku])
+  @@index([tenantId, productId])
+  @@map("product_variants")
 }
 
 model MediaAsset {
@@ -151,18 +208,37 @@ model Order {
 }
 
 model OrderItem {
-  id         String  @id @default(uuid()) @db.Uuid
-  tenantId   String  @map("tenant_id") @db.Uuid
-  orderId    String  @map("order_id") @db.Uuid
-  productId  String  @map("product_id") @db.Uuid
-  name       String
-  sku        String
-  quantity   Int
-  priceCents Int     @map("price_cents")
-  order      Order   @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
-  product    Product @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
+  id           String          @id @default(uuid()) @db.Uuid
+  tenantId     String          @map("tenant_id") @db.Uuid
+  orderId      String          @map("order_id") @db.Uuid
+  productId    String          @map("product_id") @db.Uuid
+  variantId    String?         @map("variant_id") @db.Uuid
+  name         String
+  variantTitle String?         @map("variant_title")
+  sku          String
+  quantity     Int
+  priceCents   Int             @map("price_cents")
+  order        Order           @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  product      Product         @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Restrict)
+  variant      ProductVariant? @relation(fields: [tenantId, variantId], references: [tenantId, id], onDelete: Restrict)
 
   @@index([tenantId, orderId])
   @@index([tenantId, productId])
+  @@index([tenantId, variantId])
   @@map("order_items")
+}
+
+model PlatformAuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  actor          String
+  action         String
+  targetTenantId String   @map("target_tenant_id") @db.Uuid
+  targetSlug     String   @map("target_slug")
+  details        Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant         Tenant   @relation(fields: [targetTenantId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
+  @@index([targetTenantId])
+  @@map("platform_audit_logs")
 }

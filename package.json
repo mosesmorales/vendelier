@@ -7,13 +7,13 @@
     "node": ">=24.21 <25"
   },
   "scripts": {
-    "dev": "turbo run dev --filter=@vendelier/app",
+    "dev": "turbo run dev --filter=@vendelier/app --filter=@vendelier/api",
     "build": "turbo run build",
-    "start": "pnpm --filter @vendelier/app start",
+    "start": "turbo run start --filter=@vendelier/app --filter=@vendelier/api",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "test:monolith": "node --test tests/monolith.test.mjs"
+    "test:integration": "node --test tests/integration.test.mjs"
   },
   "devDependencies": {
     "turbo": "2.11.13"
